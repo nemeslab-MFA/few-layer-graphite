@@ -16,25 +16,34 @@ The bulk curves are followed by the DOS of finite slabs (20, 50 and 100
 layers by default) of both stackings, which show how the subbands and the
 surface band of a film approach the bulk.
 
-A last set of plots shows the bulk and the slab curves with the energy scale
-broadened at 300 K, that is convolved with the derivative of the Fermi function.
+A Raman shift is the difference between an electron and a hole energy, so the
+last sections work on that difference itself: the joint density of states of
+the mirror pairs n- -> n+ of a slab.  It is set against ERS spectra calculated
+for whole films (examples/ers_calculations/*.dat) and drawn for the thicker
+slabs and for the bulk (integrated over the three-dimensional zone), as
+computed and broadened to the measured ERS line width (500 1/cm on the
+Raman-shift axis).
 
-Writes four figures, two CSV tables and an HTML report (LaTeX set by MathJax):
-    <prefix>_comparison.png     DOS of both polytypes on one graph
-    <prefix>_raman_window.png   the same, with the accessible energies shaded
-    <prefix>_slabs.png          DOS of the finite slabs over the bulk curves
-    <prefix>_thermal.png        bulk and slabs, thermally broadened
-    <prefix>.csv                E - E_F and the two bulk DOS curves
-    <prefix>_slabs.csv          E - E_F and the DOS of every slab
-    <prefix>_report.html        figures, numbers and method on one page
+Writes five figures, three CSV tables and an HTML report (LaTeX set by MathJax):
+    <prefix>_comparison.png       DOS of both polytypes on one graph
+    <prefix>_raman_window.png     the same, with the accessible energies shaded
+    <prefix>_slabs.png            DOS of the finite slabs over the bulk curves
+    <prefix>_ers_calculation.png  calculated ERS spectra and mirror-pair spectra
+    <prefix>_raman_axis.png       ERS estimate of slabs and bulk against Raman shift
+    <prefix>.csv                  E - E_F and the two bulk DOS curves
+    <prefix>_slabs.csv            E - E_F and the DOS of every slab
+    <prefix>_pairs.csv            excitation energy and the mirror-pair spectra
+    <prefix>_report.html          figures, numbers and method on one page
 
 Usage:
     python graphite_ers_background.py [--raman-min 80] [--raman-max 6200]
-                                      [--slabs 20 50 100] [--temperature 300]
+                                      [--slabs 20 50 100] [--linewidth 500]
+                                      [--ers-spectra FILE ...]
                                       [--prefix examples/graphite_ers_dos]
                                       [--from-csv examples/graphite_ers_dos.csv]
 """
 import argparse
+import glob
 import json
 import multiprocessing
 import os
@@ -53,6 +62,10 @@ STACKS = (("ab", "hexagonal (AB)", "#2a78d6"), ("abc", "rhombohedral (ABC)", "#e
 # the 2 x 2 rhombohedral problem is cheap and its Dirac points need the finer mesh
 REFINE_FACTOR = {"ab": 1, "abc": 4}
 SLAB_PATTERN = {"ab": "aba", "abc": "abc"}      # periodic patterns of multilayer_graphene
+# excitation energy (eV) below which a slab spectrum uses the sigma_z matrix elements: needed where the bilayer-like
+# subbands of a hexagonal slab overlap; in rhombohedral slabs the mirror pairs carry the weight at all energies
+WEIGHTED_BELOW = {"ab": 0.06, "abc": 0.0}
+ERS_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "examples", "ers_calculations")
 BLAS_THREAD_VARIABLES = ("OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "MKL_NUM_THREADS", "VECLIB_MAXIMUM_THREADS")
 INK, INK_SOFT, GRID, SURFACE, WINDOW = "#0b0b0b", "#52514e", "#e4e3df", "#fcfcfb", "#eda100"
 
@@ -106,6 +119,27 @@ def _slab_dos(job):
     return np.interp(energy, d["energy"] - fermi, d["dos_per_unit_cell"] / (2.0 * n_layers)), fermi
 
 
+def _run_in_workers(function, jobs):
+    """
+    Map a function over jobs in parallel worker processes, with one BLAS thread
+    each, set before the workers import NumPy: threaded LAPACK calls from
+    several processes at once slow each other down a hundredfold on matrices
+    of this size.
+    """
+    saved = {name: os.environ.get(name) for name in BLAS_THREAD_VARIABLES}
+    os.environ.update(dict.fromkeys(BLAS_THREAD_VARIABLES, "1"))
+    try:
+        with ProcessPoolExecutor(max_workers=min(len(jobs), os.cpu_count() or 1),
+                                 mp_context=multiprocessing.get_context("spawn")) as pool:
+            return list(pool.map(function, jobs))
+    finally:
+        for name, value in saved.items():
+            if value is None:
+                del os.environ[name]
+            else:
+                os.environ[name] = value
+
+
 def compute_slabs(layers, e_max=0.5, dk=1.0e-3, k_max=0.18, bin_width=1.0e-3):
     """
     DOS per atom of finite slabs of both stackings on a common grid of
@@ -115,21 +149,7 @@ def compute_slabs(layers, e_max=0.5, dk=1.0e-3, k_max=0.18, bin_width=1.0e-3):
     layers = sorted(int(n) for n in layers)
     energy = np.arange(-e_max, e_max + 0.5 * bin_width, bin_width)
     jobs = [(n, key, energy, dk, k_max, mlg.get_parameters()) for n in reversed(layers) for key, _, _ in STACKS]
-    # One BLAS thread per worker, set before the workers import NumPy: threaded
-    # LAPACK calls from several processes at once slow each other down a
-    # hundredfold on matrices of this size.
-    saved = {name: os.environ.get(name) for name in BLAS_THREAD_VARIABLES}
-    os.environ.update(dict.fromkeys(BLAS_THREAD_VARIABLES, "1"))
-    try:
-        with ProcessPoolExecutor(max_workers=min(len(jobs), os.cpu_count() or 1),
-                                 mp_context=multiprocessing.get_context("spawn")) as pool:
-            results = list(pool.map(_slab_dos, jobs))
-    finally:
-        for name, value in saved.items():
-            if value is None:
-                del os.environ[name]
-            else:
-                os.environ[name] = value
+    results = _run_in_workers(_slab_dos, jobs)
     slabs = {"energy": energy}
     info = {"layers": layers, "dk": dk, "k_max": k_max, "bin_width": bin_width,
             "parameters": mlg.get_parameters(), "fermi_energy_eV": {}}
@@ -140,20 +160,38 @@ def compute_slabs(layers, e_max=0.5, dk=1.0e-3, k_max=0.18, bin_width=1.0e-3):
     return slabs, info
 
 
-def save_slabs_csv(path, slabs, info):
-    columns = list(slabs)
+def _save_table(path, table, info, header):
+    columns = list(table)
     with open(path, "w") as fh:
         fh.write(f"# metadata: {json.dumps({**info, 'columns': columns}, sort_keys=True)}\n")
-        fh.write(",".join(["energy_minus_EF_eV"] + [f"dos_{c}_layers_states_per_eV_atom" for c in columns[1:]]) + "\n")
-        for row in zip(*(slabs[c] for c in columns)):
+        fh.write(",".join(header) + "\n")
+        for row in zip(*(table[c] for c in columns)):
             fh.write(",".join(f"{v:.8g}" for v in row) + "\n")
 
 
-def load_slabs_csv(path):
+def _load_table(path):
     with open(path) as fh:
         info = json.loads(fh.readline().split("# metadata:", 1)[1])
     data = np.loadtxt(path, delimiter=",", skiprows=2)
     return {c: data[:, i] for i, c in enumerate(info.pop("columns"))}, info
+
+
+def save_slabs_csv(path, slabs, info):
+    _save_table(path, slabs, info, ["energy_minus_EF_eV"]
+                + [f"dos_{c}_layers_states_per_eV_atom" for c in list(slabs)[1:]])
+
+
+def load_slabs_csv(path):
+    return _load_table(path)
+
+
+def save_pairs_csv(path, pairs, info):
+    _save_table(path, pairs, info, ["excitation_energy_eV"]
+                + [f"mirror_pairs_{c}{'' if c.endswith('bulk') else '_layers'}_per_eV_atom" for c in list(pairs)[1:]])
+
+
+def load_pairs_csv(path):
+    return _load_table(path)
 
 
 def _style(ax):
@@ -214,41 +252,38 @@ def plot_raman_window(table, info, path, raman_min, raman_max, e_max=0.5):
         ax.axvspan(sign * e_lo, sign * e_hi, color=WINDOW, alpha=0.16, linewidth=0)
         ax.axvline(sign * e_hi, color=INK_SOFT, linewidth=0.8, linestyle=(0, (4, 3)))
     ax.plot([], [], color=WINDOW, alpha=0.35, linewidth=8, solid_capstyle="butt",
-            label=f"Raman shift {raman_min:g}–{raman_max:g} cm$^{{-1}}$:  "
+            label=f"within reach of {raman_min:g}–{raman_max:g} cm$^{{-1}}$:  "
                   f"|E − E$_F$| = {1e3 * e_lo:.0f}–{1e3 * e_hi:.0f} meV")
-    ax.legend(loc="upper center", frameon=False, fontsize=9, labelcolor=INK)
-
-    # Raman shift of the n- -> n+ excitation that connects -E and +E
-    top = ax.twiny()
-    top.set_xlim(ax.get_xlim())
-    shifts = np.arange(0.0, 2.0 * e_max / EV_PER_INVERSE_CM + 1.0, 2000.0)
-    ticks = np.concatenate([-0.5 * shifts[:0:-1], 0.5 * shifts]) * EV_PER_INVERSE_CM
-    top.set_xticks(ticks)
-    top.set_xticklabels([f"{abs(2.0 * t) / EV_PER_INVERSE_CM:.0f}" for t in ticks])
-    top.set_xlabel("Raman shift ħω = 2|E − E$_F$| (cm$^{-1}$)", color=INK)
-    top.tick_params(colors=INK_SOFT, labelsize=9)
-    for side in ("top", "right", "left", "bottom"):
-        top.spines[side].set_visible(side == "top")
-    top.spines["top"].set_color(INK_SOFT)
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, 0.9), frameon=False, fontsize=9, labelcolor=INK)
+    _wavenumber_axis(ax)
+    _raman_span(ax, raman_max)
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     return fig
 
 
-def _raman_axis(ax, e_max):
-    """Top axis with the Raman shift of the n- -> n+ excitation that connects -E and +E."""
-    top = ax.twiny()
-    top.set_xlim(ax.get_xlim())
-    shifts = np.arange(0.0, 2.0 * e_max / EV_PER_INVERSE_CM + 1.0, 2000.0)
-    ticks = np.concatenate([-0.5 * shifts[:0:-1], 0.5 * shifts]) * EV_PER_INVERSE_CM
-    top.set_xticks(ticks)
-    top.set_xticklabels([f"{abs(2.0 * t) / EV_PER_INVERSE_CM:.0f}" for t in ticks])
-    top.set_xlabel("Raman shift ħω = 2|E − E$_F$| (cm$^{-1}$)", color=INK)
+def _wavenumber_axis(ax):
+    """
+    Top axis with the energy from the Fermi level in 1/cm.  A Raman shift is
+    the difference between an electron and a hole energy, so it reads on this
+    axis as the distance between the two.
+    """
+    top = ax.secondary_xaxis("top", functions=(lambda e: e / EV_PER_INVERSE_CM, lambda w: w * EV_PER_INVERSE_CM))
+    top.set_xlabel("E − E$_F$ (cm$^{-1}$)", color=INK)
     top.tick_params(colors=INK_SOFT, labelsize=9)
-    for side in ("top", "right", "left", "bottom"):
-        top.spines[side].set_visible(side == "top")
     top.spines["top"].set_color(INK_SOFT)
     return top
+
+
+def _raman_span(ax, raman_max, height=0.93):
+    """Arrow from E_F - hbar w / 2 to E_F + hbar w / 2 for the largest Raman shift of the instrument."""
+    half = 0.5 * raman_max * EV_PER_INVERSE_CM
+    ax.annotate("", xy=(half, height), xytext=(-half, height), xycoords=("data", "axes fraction"),
+                textcoords=("data", "axes fraction"),
+                arrowprops={"arrowstyle": "<->", "color": INK_SOFT, "linewidth": 0.9, "shrinkA": 0, "shrinkB": 0})
+    ax.annotate(f"Raman shift of {raman_max:g} cm$^{{-1}}$: from a hole to an electron energy",
+                xy=(0.0, height), xycoords=("data", "axes fraction"), xytext=(0, 3), textcoords="offset points",
+                ha="center", va="bottom", fontsize=8.5, color=INK_SOFT)
 
 
 def bulk_on_slab_axis(slabs, slab_info, table, info, key, n):
@@ -291,104 +326,364 @@ def plot_slabs(slabs, slab_info, table, info, path, raman_min, raman_max, e_max=
         left.set_ylim(0.0, y_wide)
         right.set_xlim(-1.0e3 * zoom, 1.0e3 * zoom)
         right.set_ylim(0.0, y_near)
-        left.legend(loc="upper center", frameon=False, fontsize=8.5, labelcolor=INK, ncol=1)
+        left.legend(loc="upper center", bbox_to_anchor=(0.5, 0.9), frameon=False, fontsize=8.5, labelcolor=INK)
+        _raman_span(left, raman_max)
         left.set_ylabel("DOS (10$^{-2}$ states eV$^{-1}$ atom$^{-1}$)", color=INK)
         if row == len(layers) - 1:
             left.set_xlabel("E − E$_F$ (eV)", color=INK)
             right.set_xlabel("E − E$_F$ (meV)", color=INK)
-    _raman_axis(axes[0, 0], e_max)
+    _wavenumber_axis(axes[0, 0])
     axes[0, 1].set_title("close-up of the Fermi level", color=INK, fontsize=10, loc="left")
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     return fig
 
 
-def thermal_broadening(energy, dos, temperature):
+def linewidth_broadening(x, y, fwhm):
     """
-    Convolve a DOS on a uniform energy grid (eV) with the derivative of the
-    Fermi function at the given temperature (K),
-
-        -df/dE = sech^2(E / 2kT) / 4kT        (FWHM 3.53 kT).
-
-    The kernel is integrated over each energy bin and the curve is continued
-    by its end values, so a constant DOS stays constant; values closer than
-    about 5 kT to the ends of the grid depend on that continuation.
+    Convolve a curve on a uniform grid with a Gaussian of full width at half
+    maximum ``fwhm`` (in the unit of x).  The kernel is normalised on the grid
+    and the curve is continued by its end values, so a constant stays constant;
+    values closer than about two widths to the ends depend on that continuation.
     """
-    kT = K_BOLTZMANN * temperature
-    h = energy[1] - energy[0]
-    m = int(np.ceil(12.0 * kT / h))
-    edges = (np.arange(-m, m + 2) - 0.5) * h
-    kernel = -np.diff(1.0 / (np.exp(edges / kT) + 1.0))
-    padded = np.pad(dos, m + 1, mode="edge")
-    return np.convolve(padded, kernel / kernel.sum(), mode="same")[m + 1:-(m + 1)]
+    h = x[1] - x[0]
+    sigma = fwhm / (2.0 * np.sqrt(2.0 * np.log(2.0)))
+    m = int(np.ceil(5.0 * sigma / h))
+    kernel = np.exp(-0.5 * (np.arange(-m, m + 1) * h / sigma) ** 2)
+    return np.convolve(np.pad(y, m, mode="edge"), kernel / kernel.sum(), mode="valid")
 
 
-def thermal_curves(table, info, slabs, slab_info, temperature):
+def load_ers_spectrum(path):
     """
-    Thermally broadened DOS per atom on the energy grid of the bulk table:
-    {'bulk': {key: D}, n_layers: {key: D}, ...}, each against E - E_F of its
-    own system.  Beyond its own energy range a slab curve is continued by the
-    bulk curve at the same absolute energy before it is broadened.
+    Read a calculated ERS spectrum: '#' header lines 'Name:' (the stacking
+    sequence), 'NOL:' (number of layers) and 'Calculated peaks [meV]:', then
+    two columns, Raman shift (meV) and intensity (arbitrary units).
+
+    Returns a dict with 'name', 'layers', 'peaks' (eV), 'shift' (eV),
+    'intensity' and 'key': 'abc', 'ab' or None for any other stacking.
     """
-    energy = table["energy"]
-    keys = [key for key, _, _ in STACKS]
-    curves = {"bulk": {key: thermal_broadening(energy, table[key], temperature) for key in keys}}
-    for n in (slab_info["layers"] if slabs is not None else []):
-        inside = (energy >= slabs["energy"][0]) & (energy <= slabs["energy"][-1])
-        curves[n] = {}
-        for key in keys:
-            shift = slab_info["fermi_energy_eV"][f"{key}_{n}"] - info[key]["fermi_energy_eV"]
-            continued = np.where(inside, np.interp(energy, slabs["energy"], slabs[f"{key}_{n}"]),
-                                 np.interp(energy + shift, energy, table[key]))
-            curves[n][key] = thermal_broadening(energy, continued, temperature)
-    return curves
+    header, rows = {}, []
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            line = line.strip()
+            if line.startswith("#"):
+                key, _, value = line[1:].partition(":")
+                header[key.strip().lower()] = value.strip()
+            elif line:
+                rows.append([float(v) for v in line.split()[:2]])
+    data = np.array(rows)
+    name = header["name"].upper()
+    peaks = []
+    for key, value in header.items():
+        if key.startswith("calculated peaks"):
+            peaks = [1.0e-3 * float(v) for v in value.replace(",", " ").split() if v.replace(".", "", 1).isdigit()]
+    steps = mlg.stacking_steps(name)
+    kind = "abc" if np.all(steps == steps[0]) else "ab" if np.all(steps[1:] == -steps[:-1]) else None
+    return {"path": path, "name": name, "layers": int(header.get("nol", len(name))), "peaks": peaks,
+            "shift": 1.0e-3 * data[:, 0], "intensity": data[:, 1], "key": kind}
 
 
-def bulk_on_broadened_slab_axis(curves, table, info, slab_info, key, n):
-    """Broadened bulk DOS at the same absolute energy as the broadened slab curve."""
-    shift = slab_info["fermi_energy_eV"][f"{key}_{n}"] - info[key]["fermi_energy_eV"]
-    return np.interp(table["energy"] + shift, table["energy"], curves["bulk"][key])
-
-
-def plot_thermal(curves, table, info, slab_info, path, raman_min, raman_max, temperature, e_max=0.45):
+def sigma_z_pair_spectrum(sequence, edges, fermi, dk=1.0e-3, k_max=0.045):
     """
-    Figure 4: the DOS broadened by the thermal kernel, one panel for the bulk
-    and one per slab.  Dashed in the slab panels: the broadened bulk curves at
-    the same absolute energy.
+    ERS spectral density of a slab with the matrix elements of Garcia-Ruiz et
+    al. (2019), Eq. (5): the sum over all pairs of a filled band v and an empty
+    band c of |<c| sigma_z |v>|^2 delta(hbar w - e_c + e_v), per atom, spin and
+    valley included, from a k window of half-width k_max around K.
+
+    The cost grows with the square of the number of bands, so this is meant
+    for low excitation energies, which come from a small window.  Returns the
+    spectrum on the bins of ``edges`` and the lowest pair energy on the border
+    of the window: the spectrum is complete below that energy.
     """
-    energy = table["energy"]
-    sel = np.abs(energy) <= e_max
-    e_lo = 0.5 * raman_min * EV_PER_INVERSE_CM
-    e_hi = 0.5 * raman_max * EV_PER_INVERSE_CM
-    panels = list(curves)
+    params = mlg.get_parameters()
+    sequence = mlg.stacking_sequence(None, sequence)
+    n_layers = len(sequence)
+    m = int(np.ceil(k_max / dk))
+    t = np.linspace(-k_max, k_max, 2 * m + 1)
+    half = t[m:]                                        # p_y >= 0; the other half is its mirror image
+    px, py = np.meshgrid(t, half, indexing="xy")
+    K = mlg.K_point()
+    kx, ky = px.ravel() + K[0], py.ravel() + K[1]
+    sigma_z = np.tile([1.0, -1.0], n_layers)
+    E = np.empty((kx.size, 2 * n_layers))
+    weight = np.empty((kx.size, n_layers, n_layers), dtype=np.float32)
+    step = max(1, int(2 ** 27 // (16 * (2 * n_layers) ** 2)))
+    for i in range(0, kx.size, step):
+        E[i:i + step], V = np.linalg.eigh(mlg.hamiltonian(kx[i:i + step], ky[i:i + step], None, sequence))
+        weight[i:i + step] = np.abs(np.einsum("kav,a,kac->kvc", V[:, :, :n_layers].conj(), sigma_z,
+                                              V[:, :, n_layers:])) ** 2
+    tri = mlg._square_mesh_triangles(t.size, half.size)
+    area = (t[1] - t[0]) ** 2                           # two mirror-image triangles of area h^2 / 2
+
+    cumulative = np.zeros(edges.size)
+    for v in range(n_layers - 1, -1, -1):
+        if E[:, n_layers].min() - E[:, v].max() > edges[-1]:
+            break
+        for c in range(n_layers):
+            lower, upper = E[:, v], E[:, n_layers + c]
+            excitation = upper - lower
+            if excitation.min() > edges[-1]:
+                break
+            allowed = ((lower < fermi) & (upper > fermi)) * weight[:, v, c]
+            cumulative += mlg._cumulative_states_triangles(excitation[tri], area * allowed[tri].mean(axis=1), edges)
+    outer = np.ones((half.size, t.size), dtype=bool)
+    outer[:-1, 1:-1] = False
+    outer = outer.ravel()
+    lowest_on_border = float((E[outer, n_layers] - E[outer, n_layers - 1]).min())
+    per_atom = 4.0 / (2.0 * np.pi) ** 2 * mlg.unit_cell_area(params["a"]) / (2.0 * n_layers)
+    return np.diff(cumulative) / np.diff(edges) * per_atom, lowest_on_border
+
+
+def mirror_pair_spectrum(sequence, edges, dk=1.0e-3, k_max=0.2, weighted_below=0.0):
+    """
+    ERS spectral density of a slab: the joint density of states of the mirror
+    pairs n- -> n+, the n-th band below and the n-th band above the middle of
+    the spectrum, with the occupation of T = 0,
+
+        J(w) = sum_n  int d^2p / (2 pi)^2  theta(E_F - e_n-) theta(e_n+ - E_F)
+               delta(hbar w - e_n+(p) + e_n-(p)),
+
+    per atom, spin and valley included.  The Raman shift is an energy
+    difference between a state above and a state below the Fermi level, and
+    this spectrum is taken on that difference directly.  It is Eq. (5) of
+    Garcia-Ruiz et al. (2019) with the matrix element |<n+| sigma_z |n->|^2 of
+    a mirror pair set to 1.
+
+    Counting the n-th band from the middle finds the mirror partner as long as
+    the subbands keep their order.  In a hexagonal slab they do not near the
+    Fermi level: its bilayer-like subbands overlap there, and bands that belong
+    to different subbands get paired, which adds excitations that the matrix
+    element forbids (below about 27 meV for 15 layers).  ``weighted_below``
+    (eV) replaces the spectrum below that energy by the full sum of
+    ``sigma_z_pair_spectrum``, blended in over the upper quarter of the range.
+    Above it the two agree to about 3 %, and in rhombohedral slabs to 1.5 % at
+    all energies (checked in the tests).
+
+    sequence: explicit stacking sequence; edges: bin edges of the excitation
+    energy hbar w (eV).  Uses the parameters of ``multilayer_graphene``.
+    Returns the spectrum (pairs per eV per atom) and the Fermi level (eV).
+    """
+    params = mlg.get_parameters()
+    sequence = mlg.stacking_sequence(None, sequence)
+    n_layers = len(sequence)
+    n_side = int(np.ceil(2.0 * k_max / dk)) + 1
+    t = np.linspace(-k_max, k_max, n_side)
+    E = mlg._valley_window_eigenvalues(t, None, sequence).reshape(n_side * n_side, -1)
+    tri = mlg._square_mesh_triangles(n_side, n_side)
+    area = 0.5 * (t[1] - t[0]) ** 2
+
+    # charge neutrality: n_layers of the 2 n_layers bands are filled inside the k window
+    levels = np.linspace(-0.3, 0.3, 1201) + params["E0"]
+    filled = sum(mlg._cumulative_states_triangles(E[tri, b], area, levels) for b in range(2 * n_layers))
+    fermi = float(np.interp(n_layers * (2.0 * k_max) ** 2, filled, levels))
+
+    border = np.ones((n_side, n_side), dtype=bool)
+    border[1:-1, 1:-1] = False
+    border = border.ravel()
+    cumulative = np.zeros(edges.size)
+    lowest_on_border = np.inf
+    for n in range(n_layers):
+        lower, upper = E[:, n_layers - 1 - n], E[:, n_layers + n]
+        excitation = upper - lower
+        # a triangle counts with the fraction of its corners at which the pair is allowed
+        allowed = ((lower < fermi) & (upper > fermi)).astype(float)
+        cumulative += mlg._cumulative_states_triangles(excitation[tri], area * allowed[tri].mean(axis=1), edges)
+        lowest_on_border = min(lowest_on_border, excitation[border].min())
+    if lowest_on_border < edges[-1]:
+        print(f"Warning: pairs on the border of the k window start at {lowest_on_border:.3f} eV, inside the "
+              f"range of excitation energies; increase k_max (currently {k_max:.3f} 1/A).")
+    per_atom = 4.0 / (2.0 * np.pi) ** 2 * mlg.unit_cell_area(params["a"]) / (2.0 * n_layers)
+    spectrum = np.diff(cumulative) / np.diff(edges) * per_atom
+
+    low = int(np.searchsorted(edges, weighted_below + 1e-12, side="right"))     # edges up to weighted_below
+    if weighted_below > 0.0 and low > 1:
+        weighted, complete_below = sigma_z_pair_spectrum(sequence, edges[:low], fermi, dk)
+        if complete_below < edges[low - 1]:
+            print(f"Warning: the window of the sigma_z-weighted spectrum holds all pairs only below "
+                  f"{complete_below:.3f} eV, less than weighted_below = {weighted_below:g} eV.")
+        centres = 0.5 * (edges[:low - 1] + edges[1:low])
+        blend = np.clip((weighted_below - centres) / (0.25 * weighted_below), 0.0, 1.0)
+        spectrum[:low - 1] = blend * weighted + (1.0 - blend) * spectrum[:low - 1]
+    return spectrum, fermi
+
+
+def _pair_job(job):
+    """Mirror-pair spectrum of one slab; runs in a worker process."""
+    n_layers, key, edges, dk, k_max, params = job
+    mlg.set_parameters(**params)
+    return mirror_pair_spectrum(mlg.stacking_sequence(n_layers, SLAB_PATTERN[key]), edges, dk, k_max,
+                                weighted_below=WEIGHTED_BELOW[key])
+
+
+def compute_pair_spectra(layers, shift_max=1.0, step=3.0e-3, dk=1.0e-3, k_max=0.2):
+    """
+    Mirror-pair spectra (pairs per eV per atom) of slabs of both stackings on a
+    common grid of excitation energies hbar w = step, 2 step, ... (eV); see
+    ``mirror_pair_spectrum``.  The bin around w = 0 is left out: half of it lies
+    at negative energies.  The slabs are diagonalised in parallel.
+    """
+    layers = sorted(int(n) for n in layers)
+    shift = np.arange(step, shift_max, step)
+    edges = np.concatenate([shift - 0.5 * step, [shift[-1] + 0.5 * step]])
+    jobs = [(n, key, edges, dk, k_max, mlg.get_parameters()) for n in reversed(layers) for key, _, _ in STACKS]
+    results = _run_in_workers(_pair_job, jobs)
+    pairs = {"shift": shift}
+    info = {"layers": layers, "dk": dk, "k_max": k_max, "step": step, "parameters": mlg.get_parameters(),
+            "weighted_below_eV": WEIGHTED_BELOW, "fermi_energy_eV": {}}
+    for (n, key, *_), (spectrum, fermi) in sorted(zip(jobs, results), key=lambda item: item[0][:2]):
+        pairs[f"{key}_{n}"] = spectrum
+        info["fermi_energy_eV"][f"{key}_{n}"] = fermi
+        print(f"mirror-pair spectrum: {n:4d} layers {SLAB_PATTERN[key]}, E_F = {1e3 * fermi:+.2f} meV")
+    return pairs, info
+
+
+def _bulk_pair_job(job):
+    """Mirror-pair spectrum of one bulk polytype; runs in a worker process."""
+    key, edges, fermi, n_kz, dk, refine, params = job
+    mlg.set_parameters(**params)
+    return bg.calculate_bulk_pair_spectrum(edges, key, fermi, n_kz=n_kz, dk=dk, refine=refine,
+                                           verbose=True)["pairs_per_atom"]
+
+
+def compute_bulk_pair_spectra(pairs, pair_info, info, n_kz=240, dk=2.0e-3, refine=8):
+    """
+    Add the mirror-pair spectra of the two bulk polytypes ('ab_bulk',
+    'abc_bulk', pairs per eV per atom) to a table of slab spectra, on its grid
+    of excitation energies; see ``bulk_graphite.calculate_bulk_pair_spectrum``.
+    The Fermi levels are those of the bulk DOS in ``info``.
+    """
+    shift = pairs["shift"]
+    step = shift[1] - shift[0]
+    edges = np.concatenate([shift - 0.5 * step, [shift[-1] + 0.5 * step]])
+    jobs = [(key, edges, info[key]["fermi_energy_eV"], n_kz, dk, refine * REFINE_FACTOR[key], mlg.get_parameters())
+            for key, _, _ in STACKS]
+    for (key, *_), spectrum in zip(jobs, _run_in_workers(_bulk_pair_job, jobs)):
+        pairs[f"{key}_bulk"] = spectrum
+    pair_info["bulk"] = {"n_kz": n_kz, "dk": dk, "refine": {key: refine * REFINE_FACTOR[key] for key, _, _ in STACKS}}
+    return pairs, pair_info
+
+
+def bulk_pair_rule(table, shift):
+    """
+    The mirror-pair spectrum of the bulk (pairs per eV per atom) as it follows
+    from the DOS alone: for bands that are mirror images about the Fermi level
+    the joint density of states at hbar w is D(E_F + hbar w / 2) / 2; the
+    electron and the hole side are averaged.
+    """
+    return {key: 0.25 * (np.interp(0.5 * shift, table["energy"], table[key])
+                         + np.interp(-0.5 * shift, table["energy"], table[key])) for key, _, _ in STACKS}
+
+
+def scale_to_model(shift, intensity, model, raman_min, raman_max, linewidth):
+    """
+    Factor that puts a calculated spectrum in arbitrary units on the scale of
+    a model spectrum: a least-squares fit of the two curves, broadened to the
+    ERS linewidth (1/cm), inside the Raman window.
+    """
+    window = (shift >= raman_min * EV_PER_INVERSE_CM) & (shift <= raman_max * EV_PER_INVERSE_CM)
+    width = linewidth * EV_PER_INVERSE_CM
+    calculated, reference = (linewidth_broadening(shift, y, width)[window] for y in (intensity, model))
+    return float((calculated * reference).sum() / (calculated * calculated).sum())
+
+
+def _meV_axis(ax):
+    """Top axis in meV for a bottom axis in 1/cm."""
+    top = ax.secondary_xaxis("top", functions=(lambda w: w * EV_PER_INVERSE_CM * 1.0e3,
+                                                lambda e: e / (EV_PER_INVERSE_CM * 1.0e3)))
+    top.set_xlabel("ħω (meV)", color=INK)
+    top.tick_params(colors=INK_SOFT, labelsize=9)
+    top.spines["top"].set_color(INK_SOFT)
+    return top
+
+
+def plot_ers_calculation(spectra, pairs, path, raman_min, raman_max, linewidth):
+    """
+    Figure 4: calculated ERS spectra with the mirror-pair spectra of the slab
+    model, one row per thickness.  Left: as computed; right: broadened to the
+    ERS linewidth.  Each calculated spectrum is scaled by one factor.
+    """
+    layers = sorted({s["layers"] for s in spectra})
+    shift = pairs["shift"]
+    x = shift / EV_PER_INVERSE_CM
+    width = linewidth * EV_PER_INVERSE_CM
+    fig, axes = plt.subplots(len(layers), 2, figsize=(10.6, 0.8 + 3.5 * len(layers)), facecolor=SURFACE, squeeze=False)
+    for row, n_layers in enumerate(layers):
+        for col, ax in enumerate(axes[row]):
+            def drawn(y):
+                return linewidth_broadening(shift, y, width) if col else y
+            for spectrum in (s for s in spectra if s["layers"] == n_layers and s["key"]):
+                intensity = np.interp(shift, spectrum["shift"], spectrum["intensity"])
+                scale = scale_to_model(shift, intensity, pairs[f"{spectrum['key']}_{n_layers}"], raman_min, raman_max, linewidth)
+                ax.plot(x, 100.0 * scale * drawn(intensity), color=INK, alpha=0.3, linewidth=4.5, solid_capstyle="round",
+                        label=f"calculated ERS, {dict((k, l) for k, l, _ in STACKS)[spectrum['key']]}, scaled")
+                if col == 0:
+                    for n, peak in enumerate(spectrum["peaks"], start=1):
+                        ax.annotate(str(n), (peak / EV_PER_INVERSE_CM, 100.0 * scale * np.interp(peak, shift, intensity)),
+                                    textcoords="offset points", xytext=(0, 4), ha="center", fontsize=7.5, color=INK_SOFT)
+            for key, label, color in STACKS:
+                ax.plot(x, 100.0 * drawn(pairs[f"{key}_{n_layers}"]), color=color, linewidth=1.3,
+                        label=f"mirror pairs, {label}")
+            ax.axvspan(raman_min, raman_max, color=WINDOW, alpha=0.16, linewidth=0)
+            ax.set_xlim(0.0, x[-1])
+            ax.set_ylim(0.0, None)
+            _style(ax)
+            ax.legend(loc="lower right", frameon=False, fontsize=8.5, labelcolor=INK,
+                      title=f"{n_layers} layers" + (f", line width {linewidth:g} cm$^{{-1}}$" if col else ", as computed"),
+                      title_fontproperties={"weight": "bold", "size": 9})
+            if row == len(layers) - 1:
+                ax.set_xlabel("Raman shift (cm$^{-1}$)", color=INK)
+            if row == 0:
+                _meV_axis(ax)
+        axes[row, 0].set_ylabel("ERS spectral density (10$^{-2}$ pairs eV$^{-1}$ atom$^{-1}$)", color=INK)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    return fig
+
+
+def plot_pair_spectra(pairs, table, path, raman_min, raman_max, linewidth, layers):
+    """
+    Figure 5: the ERS estimate on the Raman-shift axis, one panel for the bulk
+    and one per slab.  Thin lines: mirror-pair spectra as computed; thick
+    lines: broadened to the ERS linewidth.  Dashed in the slab panels: the
+    broadened bulk curves; dotted in the bulk panel: what the DOS alone gives.
+    """
+    shift = pairs["shift"]
+    x = shift / EV_PER_INVERSE_CM
+    width = linewidth * EV_PER_INVERSE_CM
+    bulk = {key: pairs[f"{key}_bulk"] for key, _, _ in STACKS}
+    rule = bulk_pair_rule(table, shift)
+    panels = ["bulk"] + list(layers)
     ncol = min(2, len(panels))
     nrow = -(-len(panels) // ncol)
     fig, axes = plt.subplots(nrow, ncol, figsize=(5.3 * ncol, 0.7 + 3.4 * nrow), facecolor=SURFACE, squeeze=False)
-    y_max = 1.06 * 100.0 * max(curves[p][key][sel].max() for p in panels for key, _, _ in STACKS)
+    y_max = 1.08 * 100.0 * max(linewidth_broadening(shift, bulk[key], width).max() for key in bulk)
     for i, ax in enumerate(axes.ravel()):
         if i >= len(panels):
             ax.axis("off")
             continue
         panel = panels[i]
         for key, label, color in STACKS:
-            ax.plot(energy[sel], 100.0 * curves[panel][key][sel], color=color, linewidth=1.8, label=label)
+            raw = bulk[key] if panel == "bulk" else pairs[f"{key}_{panel}"]
+            ax.plot(x, 100.0 * raw, color=color, linewidth=0.7, alpha=0.45)
+            ax.plot(x, 100.0 * linewidth_broadening(shift, raw, width), color=color, linewidth=1.9, label=label)
             if panel != "bulk":
-                bulk = bulk_on_broadened_slab_axis(curves, table, info, slab_info, key, panel)
-                ax.plot(energy[sel], 100.0 * bulk[sel], color=INK, linewidth=0.8, linestyle=(0, (4, 2)),
-                        label="bulk" if key == "abc" else None)
-        for sign in (-1.0, 1.0):
-            ax.axvspan(sign * e_lo, sign * min(e_hi, e_max), color=WINDOW, alpha=0.16, linewidth=0)
-        ax.set_xlim(-e_max, e_max)
+                ax.plot(x, 100.0 * linewidth_broadening(shift, bulk[key], width), color=INK, linewidth=0.8,
+                        linestyle=(0, (4, 2)), label="bulk" if key == "abc" else None)
+            else:
+                ax.plot(x, 100.0 * linewidth_broadening(shift, rule[key], width), color=INK, linewidth=0.9,
+                        linestyle=(0, (1, 2)), label="from the DOS" if key == "abc" else None)
+        ax.axvspan(raman_min, raman_max, color=WINDOW, alpha=0.16, linewidth=0)
+        ax.set_xlim(0.0, x[-1])
         ax.set_ylim(0.0, y_max)
         _style(ax)
-        ax.legend(loc="upper center", frameon=False, fontsize=8.5, labelcolor=INK,
+        ax.legend(loc="lower right", frameon=False, fontsize=8.5, labelcolor=INK,
                   title="bulk" if panel == "bulk" else f"{panel} layers", title_fontproperties={"weight": "bold", "size": 9})
         if i // ncol == 0:
-            _raman_axis(ax, e_max)
+            _meV_axis(ax)
         if i + ncol >= len(panels):
-            ax.set_xlabel("E − E$_F$ (eV)", color=INK)
+            ax.set_xlabel("Raman shift (cm$^{-1}$)", color=INK)
         if i % ncol == 0:
-            ax.set_ylabel(f"DOS at {temperature:g} K (10$^{{-2}}$ states eV$^{{-1}}$ atom$^{{-1}}$)", color=INK)
+            ax.set_ylabel("ERS spectral density (10$^{-2}$ pairs eV$^{-1}$ atom$^{-1}$)", color=INK)
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     return fig
@@ -444,8 +739,14 @@ def _listing(values):
 
 
 def ers_peak(n, n_layers, gamma1):
-    """n- -> n+ excitation energy (eV) of an n_layers rhombohedral film, Garcia-Ruiz et al. (2019), Eq. (1)."""
-    return 4.0 * gamma1 * np.sin((n + 0.5) * np.pi / (2 * n_layers + 1))
+    """
+    n- -> n+ excitation energy (eV) of an n_layers rhombohedral film:
+    2 gamma1 sin(q_n) with q_n = (n + 1/2) pi / (n_layers + 1/2), the edge of a
+    pair of subbands of the chain with couplings hbar v p and gamma1.  For
+    n << n_layers this is the 4 gamma1 sin(q_n / 2) of Garcia-Ruiz et al.
+    (2019), Eq. (1).
+    """
+    return 2.0 * gamma1 * np.sin((n + 0.5) * np.pi / (n_layers + 0.5))
 
 
 def subband_peak_pair(energy, dos, centre, expected, half_width):
@@ -523,10 +824,11 @@ def _slab_remarks(slabs, slab_info, table, info, raman_min, raman_max):
         f"largest deviation is {listing([f'{100 * d:.1f} %' for d in deviation])} for {names} layers. "
         "The discrete subbands show only as small steps within about 20 meV of the Fermi level.</li>"
         "<li><b>Rhombohedral slabs resolve the bulk continuum into a ladder of subbands.</b> Each subband starts with a "
-        r"step and a van Hove peak. The \(-n\) and \(+n\) peaks pair into the ERS peaks of García-Ruiz et al. (2019),"
-        r"\[\hbar\omega_n \approx 4\gamma_1 \sin\!\left[\frac{\left(n + \frac{1}{2}\right)\pi}{2N + 1}\right].\]"
-        f"The first one lies at {listing([f'{w:.0f}' for w in first])} {CM1} for {names} layers, and the peaks follow "
-        r"each other every \(4\pi\gamma_1/(2N + 1) =\) "
+        r"step and a van Hove peak. The \(-n\) and \(+n\) peaks pair into ERS peaks at"
+        r"\[\hbar\omega_n \approx 2\gamma_1 \sin\!\left[\frac{\left(n + \frac{1}{2}\right)\pi}{N + \frac{1}{2}}\right],\]"
+        r"which for \(n \ll N\) is the \(4\gamma_1 \sin[(n + \tfrac{1}{2})\pi/(2N + 1)]\) of García-Ruiz et al. (2019). "
+        f"The first one lies at {listing([f'{w:.0f}' for w in first])} {CM1} for {names} layers, and at the bottom of "
+        r"the ladder the peaks follow each other every \(4\pi\gamma_1/(2N + 1) =\) "
         f"{listing([f'{w:.0f}' for w in spacing])} {CM1}.{check}</li>"
         "<li><b>Thick rhombohedral slabs give a bulk-like background.</b> The measured ERS peaks of thin films are about "
         f"500 {CM1} wide at room temperature (Pálinkás et al. 2024). {merging} into a "
@@ -541,7 +843,8 @@ def _slab_remarks(slabs, slab_info, table, info, raman_min, raman_max):
         f"{listing([f'{1e3 * o:.0f}' for o in offset])} meV below the bulk Dirac energy for {names} layers. The dashed bulk "
         f"curves are drawn at the same absolute energy, which puts their minimum to the right of zero. The {PAIR} "
         f"pairs are centred near the Dirac energy and not on {EF}, so for the subbands the shaded "
-        r"window should be read as shifted by that amount. At low temperature the pairs with \(\hbar\omega/2\) smaller "
+        r"window should be read as shifted by that amount; the sections below take the pair energy itself. "
+        r"At low temperature the pairs with \(\hbar\omega/2\) smaller "
         f"than the offset (shifts below about {round(2.0 * min(offset) / EV_PER_INVERSE_CM, -1):.0f} {CM1}) are Pauli "
         "blocked. The offset belongs to the non-interacting model, which leaves out the charge redistribution between "
         "surface and interior.</li>"
@@ -574,9 +877,8 @@ def _slab_section(slabs, slab_info, table, info, raman_min, raman_max, fig_slabs
         f"<figure>{img_tag(fig_slabs, 'DOS of finite slabs of hexagonal and rhombohedral graphite')}"
         f"<figcaption>Figure 3. DOS per atom of slabs of {names} layers: hexagonal (blue) and rhombohedral (orange), "
         "energies measured from the Fermi level of each slab. Dashed: the bulk curves of Figure 1 at the same absolute "
-        "energy. Left: the energy range of Figure 2, with the energies reached by "
-        f"{raman_min:g}–{raman_max:g} {CM1} shaded. Right: the 100 meV around the Fermi level, on a common "
-        "vertical scale.</figcaption></figure>",
+        "energy. Left: the energy range of Figure 2, with the same shading and the same arrow for the largest Raman "
+        "shift. Right: the 100 meV around the Fermi level, on a common vertical scale.</figcaption></figure>",
         html_table(
             ["", rf"{EF} hexagonal (meV)", rf"{EF} rhombohedral (meV)", "hexagonal", "rhombohedral",
              "rhombohedral / hexagonal"],
@@ -594,115 +896,238 @@ def _slab_section(slabs, slab_info, table, info, raman_min, raman_max, fig_slabs
     ]
 
 
-def dos_ratio(table, shift):
-    """Rhombohedral / hexagonal DOS ratio of a table at E_F -+ hbar w / 2."""
-    hexagonal, rhombohedral = dos_at_shift(table, shift)
-    return rhombohedral / hexagonal
+def peak_contrast(x, y, lo, hi):
+    """
+    Largest peak-to-valley contrast 1 - y_min / y_peak among the local maxima
+    of y with lo <= |x| <= hi, each compared with the next local minimum on
+    its far side from x = 0 (where a subband peak decays before the next
+    subband starts).  0 if the curve has no such peak.
+    """
+    best = 0.0
+    inner = np.arange(1, x.size - 1)
+    peaks = inner[(y[inner] > y[inner - 1]) & (y[inner] >= y[inner + 1]) & (np.abs(x[inner]) >= lo) & (np.abs(x[inner]) <= hi)]
+    for i in peaks:
+        step = 1 if x[i] > 0 else -1
+        j = i
+        while 0 < j + step < x.size - 1 and y[j + step] <= y[j] and abs(x[j + step]) <= hi:
+            j += step
+        if j != i and 0 < j + step < x.size - 1 and y[j + step] > y[j]:
+            best = max(best, 1.0 - y[j] / y[i])
+    return best
 
 
-def _thermal_section(curves, table, info, slabs, slab_info, raman_min, raman_max, temperature, fig_thermal):
-    """Report section on the thermally broadened DOS of the bulk and of the slabs."""
+def _onset(shift, spectrum, fraction=0.25):
+    """Excitation energy (eV) at which a spectrum reaches the given fraction of its value at 60 meV."""
+    return shift[np.nonzero(spectrum[1:] > fraction * np.interp(0.06, shift, spectrum))[0][0] + 1]
+
+
+def _ers_section(spectra, pairs, raman_min, raman_max, linewidth, fig_ers):
+    """Report section that sets calculated ERS spectra against the mirror-pair spectra of the slab model."""
     from make_report import img_tag, table as html_table
 
-    energy = table["energy"]
-    kT = K_BOLTZMANN * temperature
-    fwhm = 2.0 * np.log(3.0 + 2.0 * np.sqrt(2.0)) * kT          # of sech^2(E / 2kT): 3.53 kT
-    fwhm_shift = 2.0 * fwhm / EV_PER_INVERSE_CM                 # on the axis hbar w = 2 |E - E_F|
-    panels = list(curves)
-    layers = [p for p in panels if p != "bulk"]
-    names = _listing([str(n) for n in layers]) if layers else ""
-    tables = {p: {"energy": energy, **curves[p]} for p in panels}
-    centre = int(np.argmin(np.abs(energy)))
-    at_fermi = {p: {key: 100.0 * curves[p][key][centre] for key, _, _ in STACKS} for p in panels}
-    e_hi = 0.5 * raman_max * EV_PER_INVERSE_CM
-    sel = np.abs(energy) <= e_hi
-
-    shifts = sorted({raman_min, raman_max} | {v for v in (500.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0)
-                                             if raman_min < v < raman_max})
-    rows = [[f"{w:.0f}", f"{0.5e3 * w * EV_PER_INVERSE_CM:.1f}"] + [f"{dos_ratio(tables[p], w):.2f}" for p in panels]
-            for w in shifts]
-    high = [w for w in shifts if w >= 2000.0]
-    unchanged = max(abs(dos_ratio(tables["bulk"], w) - dos_ratio(table, w)) for w in high) if high else np.nan
-
+    gamma1 = mlg.get_parameters()["gamma1"]
+    shift = pairs["shift"]
+    width = linewidth * EV_PER_INVERSE_CM
+    window = (shift >= raman_min * EV_PER_INVERSE_CM) & (shift <= raman_max * EV_PER_INVERSE_CM)
+    kinds = {"abc": "rhombohedral", "ab": "hexagonal"}
+    layers = sorted({s["layers"] for s in spectra})
     out = [
-        f"<h2>Thermal broadening at {temperature:g} K</h2>",
-        rf"<p>The same curves with the energy scale smeared at \(T = {temperature:g}\) K: each DOS is convolved with the "
-        "derivative of the Fermi function,</p>"
-        r"\[D_T(E) = \int D(E')\left(-\frac{\partial f}{\partial E}\right)_{E - E'} dE', \qquad"
-        r" -\frac{\partial f}{\partial E} = \frac{1}{4k_B T}\,\operatorname{sech}^2\!\left(\frac{E}{2k_B T}\right),\]"
-        rf"<p>with \(k_B T = {kT * 1e3:.1f}\) meV. The kernel has a full width at half maximum of "
-        rf"\(3.53\,k_B T = {fwhm * 1e3:.0f}\) meV on the energy axis, which is "
-        rf"\(7.05\,k_B T\) or {fwhm_shift:.0f} {CM1} on the Raman-shift axis "
-        r"\(\hbar\omega = 2|E - E_F|\).</p>",
-        f"<figure>{img_tag(fig_thermal, 'Thermally broadened DOS of bulk graphite and of finite slabs')}"
-        f"<figcaption>Figure 4. DOS broadened at {temperature:g} K: hexagonal (blue) and rhombohedral (orange), for the bulk"
-        + (f" and for slabs of {names} layers" if layers else "")
-        + ". Energies are measured from the Fermi level of each system and the energies reached by "
-        f"{raman_min:g}–{raman_max:g} {CM1} are shaded."
-        + (" Dashed in the slab panels: the broadened bulk curves at the same absolute energy." if layers else "")
-        + "</figcaption></figure>",
-        html_table(
-            [f"Raman shift ({CM1})", f"{DE} (meV)"] + ["bulk" if p == "bulk" else f"{p} layers" for p in panels],
-            rows,
-            f"Rhombohedral / hexagonal ratio of the DOS broadened at {temperature:g} K, at "
-            r"\(E_F \mp \hbar\omega/2\) averaged over the two signs"),
+        f"<h2>Calculated ERS of {'a ' if len(layers) == 1 else ''}{_listing([str(n) for n in layers])}-layer film"
+        f"{'' if len(layers) == 1 else 's'}</h2>",
+        "<p>A Raman shift is the difference between the energy of a state above and a state below the Fermi level. "
+        "The ERS spectra calculated for whole films are therefore compared with a quantity taken on that difference: "
+        f"the joint density of states of the mirror pairs {PAIR} of the slab model of this report, the n-th band below "
+        r"and the n-th band above the middle of the spectrum, with the occupation of \(T = 0\):</p>"
+        r"\[J(\omega) = \frac{g_s g_v}{N_\mathrm{at}} \sum_n \int \frac{d^2p}{(2\pi)^2}\,"
+        r"\theta\!\left(E_F - \varepsilon_{n^-}\right)\theta\!\left(\varepsilon_{n^+} - E_F\right)"
+        r"\delta\!\left(\hbar\omega - \varepsilon_{n^+}(\mathbf{p}) + \varepsilon_{n^-}(\mathbf{p})\right).\]"
+        r"<p>This is Eq. (5) of García-Ruiz et al. (2019) with the matrix element \(|\langle n^+|\sigma_z|n^-\rangle|^2\) "
+        r"of a mirror pair set to 1. For bands that are mirror images about the Fermi level it reduces to "
+        r"\(D(E_F \pm \hbar\omega/2)/2\), the working rule used for the bulk.</p>",
+        f"<figure>{img_tag(fig_ers, 'Calculated ERS spectra and mirror-pair spectra of the slab model')}"
+        "<figcaption>Figure 4. Calculated ERS spectrum (grey band) and mirror-pair spectra of the slab model: "
+        "rhombohedral (orange) and hexagonal (blue). Left: as computed, with the pairs "
+        r"\(-n \to +n\) of the calculated peaks numbered. Right: broadened to an ERS line of "
+        f"{linewidth:g} {CM1}. The calculated spectrum is in arbitrary units and is scaled by one factor; the Raman "
+        f"shifts of {raman_min:g}–{raman_max:g} {CM1} are shaded.</figcaption></figure>",
     ]
-
-    remarks = [
-        "<li><b>Bulk.</b> The broadening fills the minimum of the rhombohedral DOS: at the Fermi level it is "
-        f"{at_fermi['bulk']['abc']:.2f} against {at_fermi['bulk']['ab']:.2f} for hexagonal graphite "
-        rf"(\(10^{{-2}}\) states {PER_EV_ATOM}). At {raman_min:g} {CM1} the ratio of the two is "
-        f"{dos_ratio(tables['bulk'], raman_min):.2f}, against {dos_ratio(table, raman_min):.2f} without broadening. "
-        f"From 2000 {CM1} upwards the broadening changes the ratio by less than "
-        f"{max(0.01, np.ceil(100.0 * unchanged) / 100.0):.2f}, and the curves cross at "
-        f"{crossing_shift(tables['bulk']):.0f} {CM1}.</li>"]
-    if layers:
-        deviation = [f"{100 * np.abs(curves[n]['ab'][sel] / bulk_on_broadened_slab_axis(curves, table, info, slab_info, 'ab', n)[sel] - 1.0).max():.1f} %"
-                     for n in layers]
-        excess = [f"{100 * (curves[n]['abc'][centre] / bulk_on_broadened_slab_axis(curves, table, info, slab_info, 'abc', n)[centre] - 1.0):.0f} %"
-                  for n in layers]
-        fermi_abc = [f"{at_fermi[n]['abc']:.2f}" for n in layers]
-        low = [f"{dos_ratio(tables[n], raman_min):.2f}" for n in layers]
-        far = max(abs(dos_ratio(tables[n], w) / dos_ratio(tables["bulk"], w) - 1.0) for n in layers for w in high)
-        remarks += [
-            "<li><b>The subband ladders are gone.</b> No step or van Hove peak of the slabs survives the broadening. "
-            f"The hexagonal slabs stay within {_listing(deviation)} of the bulk curve for {names} layers over the whole "
-            "window.</li>",
-            "<li><b>What remains of the film is its surface band.</b> The rhombohedral slabs carry extra states at the "
-            f"Fermi level: {_listing(fermi_abc)} for {names} layers against {at_fermi['bulk']['abc']:.2f} in the bulk, "
-            f"which is {_listing(excess)} above the bulk curve at the same absolute energy. "
-            r"The excess scales as \(1/N\) and sits at the low end of the window: "
-            f"at {raman_min:g} {CM1} the ratio to the hexagonal DOS is {_listing(low)} against "
-            f"{dos_ratio(tables['bulk'], raman_min):.2f} in the bulk, while from 2000 {CM1} upwards the slab ratios are "
-            f"within {100 * far:.0f} % of the bulk ratio.</li>"]
-    remarks.append(
-        "<li><b>How to read this for ERS.</b> In Eq. (1) temperature enters through the occupation factors, not as a "
-        "convolution of the DOS, so these curves show how much structure a thermal smearing of the energy scale leaves, "
-        "not the ERS line shape. On the Raman-shift axis the kernel is "
-        f"{fwhm_shift:.0f} {CM1} wide, about {fwhm_shift / 500.0:.0f} times the 500 {CM1} width of the ERS peaks "
-        "that Pálinkás et al. (2024) measure at room temperature, so the figure overstates the smearing of ERS "
-        "features. <code>--temperature</code> sets the kernel; "
-        f"{500.0 * EV_PER_INVERSE_CM / (4.0 * np.log(3.0 + 2.0 * np.sqrt(2.0)) * K_BOLTZMANN):.0f} K gives a "
-        f"width of 500 {CM1} on the Raman-shift axis.</li>")
-    out.append("<ul>" + "".join(remarks) + "</ul>")
-    if layers:
-        tail = 1.0 / (np.exp((slabs["energy"][-1] - e_hi) / kT) + 1.0)
-        out.append(
-            "<p>Numerical details: the kernel is integrated over each energy bin. The slab curves end at "
-            rf"\(|E - E_F| = {slabs['energy'][-1]:g}\) eV and are continued by the bulk curve at the same "
-            f"absolute energy before the convolution; at the upper edge of the window {100 * tail:.1f} % of the "
-            "kernel weight falls on that continuation.</p>")
+    for n_layers in layers:
+        remarks = []
+        supplied = [s for s in spectra if s["layers"] == n_layers and s["key"]]
+        for spectrum in supplied:
+            model = pairs[f"{spectrum['key']}_{n_layers}"]
+            intensity = np.interp(shift, spectrum["shift"], spectrum["intensity"])
+            scaled = scale_to_model(shift, intensity, model, raman_min, raman_max, linewidth) * intensity
+            kind = kinds[spectrum["key"]]
+            mismatch = np.abs(scaled - model)[window].mean() / model[window].mean()
+            broad = [linewidth_broadening(shift, y, width)[window] for y in (scaled, model)]
+            rows, worst = [], 0.0
+            for n, peak in enumerate(spectrum["peaks"], start=1):
+                near = np.abs(shift - peak) <= 0.009
+                found = shift[near][np.argmax(model[near])]
+                formula = ers_peak(n, n_layers, gamma1)
+                worst = max(worst, abs(formula - peak))
+                rows.append((str(n), f"{peak * 1e3:.0f}", f"{peak / EV_PER_INVERSE_CM:.0f}", f"{found * 1e3:.0f}",
+                             f"{formula * 1e3:.0f}"))
+            out.append(html_table(
+                ["n", "calculated ERS (meV)", f"calculated ERS ({CM1})", "mirror pairs (meV)",
+                 r"\(2\gamma_1 \sin q_n\) (meV)"],
+                rows,
+                rf"Peaks \(-n \to +n\) of the {n_layers}-layer {kind} film ({spectrum['name']}): from the header of "
+                "the calculated spectrum, from the mirror-pair spectrum on the same "
+                f"{1e3 * (shift[1] - shift[0]):g} meV grid, and from the closed form with "
+                r"\(q_n = (n + \tfrac{1}{2})\pi/(N + \tfrac{1}{2})\)"))
+            remarks += [
+                f"<li><b>The {n_layers}-layer {kind} calculation is reproduced.</b> With one scale factor the two spectra "
+                f"differ by {100 * mismatch:.1f} % on average over the bins inside the window, and by "
+                f"{100 * np.abs(broad[0] - broad[1]).mean() / broad[1].mean():.1f} % after broadening. Both rise near "
+                f"{1e3 * _onset(shift, scaled):.0f} meV ({_onset(shift, scaled) / EV_PER_INVERSE_CM:.0f} {CM1}): below "
+                "that the pairs of the surface band are blocked by its occupation.</li>",
+                r"<li><b>Peak positions.</b> The peaks follow \(\hbar\omega_n \approx 2\gamma_1 \sin q_n\) to within "
+                f"{1e3 * worst:.0f} meV. Each one sits at the top of a step, the edge of its pair of subbands.</li>"]
+        broad = {key: linewidth_broadening(shift, pairs[f"{key}_{n_layers}"], width) for key in kinds}
+        picks = [w for w in (1000.0, 2000.0, 3000.0, 5000.0) if raman_min < w < raman_max]
+        ratio = [f"{np.interp(w * EV_PER_INVERSE_CM, shift, broad['abc'] / broad['ab']):.2f}" for w in picks]
+        contrast = {key: 100 * peak_contrast(shift, broad[key], raman_min * EV_PER_INVERSE_CM,
+                                             raman_max * EV_PER_INVERSE_CM) for key in kinds}
+        missing = [kinds[key] for key in kinds if key not in {s["key"] for s in supplied}]
+        remarks.append(
+            f"<li><b>Rhombohedral against hexagonal at {n_layers} layers.</b> "
+            + (f"No calculated spectrum was supplied for the {_listing(missing)} film; its curve is the mirror-pair "
+               "spectrum alone. " if missing else "")
+            + f"Broadened to {linewidth:g} {CM1}, the rhombohedral / hexagonal ratio of the mirror-pair spectra is "
+            f"{_listing(ratio)} at {_listing([f'{w:.0f}' for w in picks])} {CM1}. The strongest peak that remains "
+            f"stands {contrast['abc']:.0f} % above the minimum after it in the rhombohedral film and "
+            f"{contrast['ab']:.0f} % in the hexagonal one.</li>")
+        out.append("<ul>" + "".join(remarks) + "</ul>")
     return out
 
 
-def write_report(path, table, info, raman_min, raman_max, fig_comparison, fig_window,
-                 slabs=None, slab_info=None, fig_slabs=None, curves=None, temperature=None, fig_thermal=None,
-                 standalone=True):
+def _pair_section(pairs, pair_info, table, raman_min, raman_max, linewidth, layers, fig_pairs):
+    """Report section on the ERS estimate on the Raman-shift axis: thicker slabs, bulk and the line width."""
+    from make_report import img_tag, table as html_table
+
+    shift = pairs["shift"]
+    width = linewidth * EV_PER_INVERSE_CM
+    thermal = 2.0 * np.log(3.0 + 2.0 * np.sqrt(2.0)) * K_BOLTZMANN * 300.0      # FWHM of -df/dE at 300 K
+    lo, hi = raman_min * EV_PER_INVERSE_CM, raman_max * EV_PER_INVERSE_CM
+    bulk = {key: pairs[f"{key}_bulk"] for key, _, _ in STACKS}
+    rule = {key: linewidth_broadening(shift, y, width) for key, y in bulk_pair_rule(table, shift).items()}
+    raw = {"bulk": bulk, **{n: {key: pairs[f"{key}_{n}"] for key, _, _ in STACKS} for n in pair_info["layers"]}}
+    broad = {p: {key: linewidth_broadening(shift, y, width) for key, y in curves.items()} for p, curves in raw.items()}
+    panels = ["bulk"] + list(layers)
+    every = pair_info["layers"]
+    names = _listing([str(n) for n in layers])
+    all_names = _listing([str(n) for n in every])
+
+    shifts = sorted({raman_min, raman_max} | {v for v in (500.0, 1000.0, 2000.0, 3000.0, 4000.0, 5000.0)
+                                             if raman_min < v < raman_max})
+    rows = [[f"{w:.0f}", f"{w * EV_PER_INVERSE_CM * 1e3:.0f}"]
+            + [f"{np.interp(w * EV_PER_INVERSE_CM, shift, broad[p]['abc'] / broad[p]['ab']):.2f}" for p in panels]
+            for w in shifts]
+    contrast = {key: [f"{100 * peak_contrast(shift, broad[n][key], lo, hi):.0f} %" for n in every] for key, _, _ in STACKS}
+    upper = (shift >= 2000.0 * EV_PER_INVERSE_CM) & (shift <= hi)
+    to_bulk = {key: [f"{100 * broad[n][key][upper].mean() / broad['bulk'][key][upper].mean():.1f} %" for n in every]
+               for key, _, _ in STACKS}
+    onset = [f"{_onset(shift, raw[n]['abc']) / EV_PER_INVERSE_CM:.0f}" for n in every]
+    inside = (shift >= lo) & (shift <= hi)
+    rule_error = {key: 100 * np.abs(rule[key] / broad["bulk"][key] - 1.0)[inside] for key, _, _ in STACKS}
+    above = (shift >= 500.0 * EV_PER_INVERSE_CM) & (shift <= hi)
+    rule_excess = 100 * (rule["ab"] / broad["bulk"]["ab"] - 1.0)
+    rule_at_min = np.interp(lo, shift, bulk_pair_rule(table, shift)["ab"] / bulk["ab"])
+    half_plateau = [_onset(shift, raw[p]["ab"], 0.5) / EV_PER_INVERSE_CM for p in ["bulk"] + list(every)]
+    rule_ratio = [np.interp(w * EV_PER_INVERSE_CM, shift, rule["abc"] / rule["ab"]) for w in (1000.0, 3000.0)]
+    true_ratio = [np.interp(w * EV_PER_INVERSE_CM, shift, broad["bulk"]["abc"] / broad["bulk"]["ab"]) for w in (1000.0, 3000.0)]
+
+    return [
+        "<h2>ERS estimate on the Raman-shift axis</h2>",
+        "<p>The mirror-pair spectrum is not limited to the thickness of the calculation above. Figure 5 shows it for "
+        f"slabs of {names} layers, against the Raman shift itself, and for the bulk. The bulk spectrum is the same "
+        "integral over the three-dimensional Brillouin zone: the pair energies of the four bands of hexagonal graphite "
+        r"(two pairs) and of the two bands of rhombohedral graphite (one pair), on the \(k_z\) slices and meshes of the "
+        "bulk DOS, with the Fermi levels found there.</p>"
+        f"<p>The ERS peaks of thin rhombohedral films are about 500 {CM1} wide at room temperature, which Pálinkás et al. "
+        rf"(2024) relate to a thermal width of \(3k_B T =\) {5 * round(0.6 * K_BOLTZMANN * 300.0 / EV_PER_INVERSE_CM):d} {CM1}. "
+        "The thick curves are the spectra convolved with a Gaussian of that width on the Raman-shift axis, "
+        rf"\(\Gamma = {linewidth:g}\) {CM1} at half maximum. Smearing the single-particle energies with the derivative "
+        f"of the Fermi function at 300 K would be {thermal * 1e3:.0f} meV wide and, because a shift is the difference "
+        f"of two such energies, {2.0 * thermal / EV_PER_INVERSE_CM:.0f} {CM1} on this axis: "
+        f"{2.0 * thermal / EV_PER_INVERSE_CM / linewidth:.0f} times the measured line, enough to erase the peaks that "
+        "are observed in films of up to about 20 layers.</p>",
+        f"<figure>{img_tag(fig_pairs, 'ERS estimate of bulk graphite and of finite slabs on the Raman-shift axis')}"
+        "<figcaption>Figure 5. ERS estimate against the Raman shift: hexagonal (blue) and rhombohedral (orange), for the "
+        f"bulk and for slabs of {names} layers. Thin lines: mirror-pair spectra as computed. Thick lines: broadened "
+        f"to an ERS line of {linewidth:g} {CM1}. Dashed in the slab panels: the broadened bulk curves. Dotted in the "
+        r"bulk panel: \(\tfrac{1}{4}\left[D(E_F + \hbar\omega/2) + D(E_F - \hbar\omega/2)\right]\) from the DOS, "
+        f"broadened. The Raman shifts of {raman_min:g}–{raman_max:g} {CM1} are shaded.</figcaption></figure>",
+        html_table(
+            [f"Raman shift ({CM1})", r"\(\hbar\omega\) (meV)"] + ["bulk" if p == "bulk" else f"{p} layers" for p in panels],
+            rows,
+            f"Rhombohedral / hexagonal ratio of the ERS estimate, broadened to {linewidth:g} cm⁻¹"),
+        "<ul>"
+        "<li><b>Which films show peaks.</b> In the broadened rhombohedral spectra the strongest remaining peak stands "
+        f"{_listing(contrast['abc'])} above the minimum that follows it for {all_names} layers; "
+        + ("the hexagonal spectra have no peak" if set(contrast["ab"]) == {"0 %"}
+           else f"in the hexagonal spectra {_listing(contrast['ab'])}")
+        + ". A peak survives when the pairs are further apart than the line is wide, "
+        r"that is while \(4\pi\gamma_1/(2N + 1)\) exceeds \(\Gamma\).</li>"
+        "<li><b>Thick films follow the bulk.</b> Averaged between 2000 "
+        f"{CM1} and the upper edge of the window, the broadened rhombohedral spectrum is {_listing(to_bulk['abc'])} of "
+        f"the bulk spectrum for {all_names} layers, and the hexagonal one {_listing(to_bulk['ab'])}.</li>"
+        "<li><b>How good the DOS rule was.</b> The rule of the first sections, "
+        r"\(J(\omega) \simeq \tfrac{1}{4}\left[D(E_F + \hbar\omega/2) + D(E_F - \hbar\omega/2)\right]\), "
+        "assumes bands that mirror about the Fermi level. Inside the window it differs from the bulk pair spectrum by "
+        f"{rule_error['abc'].mean():.1f} % on average and {rule_error['abc'].max():.1f} % at most for rhombohedral "
+        f"graphite (broadened curves). For hexagonal graphite it is {rule_excess[above].mean():.1f} % too high on "
+        f"average above 500 {CM1}, where the hole side carries more states than the electron side, and it misses "
+        f"the fall of the spectrum at low shifts: at {raman_min:g} {CM1} it gives {rule_at_min:.1f} times the pair "
+        "spectrum as computed. The rhombohedral / hexagonal ratio at 1000 and 3000 "
+        f"{CM1} is {true_ratio[0]:.2f} and {true_ratio[1]:.2f} from the pair spectra, against "
+        f"{rule_ratio[0]:.2f} and {rule_ratio[1]:.2f} from the rule.</li>"
+        "<li><b>Low shifts.</b> The spectra of the rhombohedral slabs start near "
+        f"{_listing(onset)} {CM1} for {all_names} layers: the surface band pins the Fermi level and blocks its own "
+        "pairs below that. Bulk rhombohedral graphite has no such threshold. In hexagonal graphite the spectrum "
+        f"falls off at low shifts in the bulk and in the slabs alike, to half of its plateau near "
+        + (f"{half_plateau[0]:.0f} {CM1} in the bulk and in every slab"
+           if len({round(w) for w in half_plateau}) == 1 else
+           f"{half_plateau[0]:.0f} {CM1} in the bulk and {_listing([f'{w:.0f}' for w in half_plateau[1:]])} {CM1} "
+           f"for {all_names} layers")
+        + ": with the occupation of T = 0 the pairs of low energy are blocked in the electron and "
+        f"hole pockets of the semimetal. Ponosov et al. see no such gap at room temperature down to 50 {CM1}.</li>"
+        "<li><b>What the line width stands for.</b> In Eq. (1) temperature enters through the occupation factors and "
+        "does not move a pair excitation, so the width is not derived here: it is the measured one, set with "
+        "<code>--linewidth</code>.</li>"
+        "</ul>",
+        "<p>Numerical details: for the slabs, in-plane mesh around K with spacing "
+        f"{pair_info['dk']:g} {PER_ANGSTROM} and half-width {pair_info['k_max']:g} {PER_ANGSTROM}, triangle "
+        f"interpolation of the pair energies, bins of {pair_info['step'] * 1e3:g} meV. A triangle counts with the "
+        "fraction of its corners at which the pair is allowed by the occupation. Counting bands from the middle of the "
+        "spectrum finds the mirror partner only while the subbands keep their order, which fails near the Fermi level "
+        "of a hexagonal slab, where its bilayer-like subbands overlap. The hexagonal spectra below "
+        f"{1e3 * pair_info['weighted_below_eV']['ab']:g} meV are therefore the sum over all pairs of bands weighted by "
+        r"\(|\langle c|\sigma_z|v\rangle|^2\), from a window of half-width 0.045 "
+        f"{PER_ANGSTROM}. For the bulk, "
+        rf"{pair_info['bulk']['n_kz']} values of \(k_z\) and a mesh spacing of {pair_info['bulk']['dk']:g} {PER_ANGSTROM}, "
+        f"with the cells near the Fermi level subdivided {pair_info['bulk']['refine']['ab']} times (hexagonal) or "
+        f"{pair_info['bulk']['refine']['abc']} times (rhombohedral); the subdivision is used for excitation energies "
+        "below 0.12 eV. With these default settings, doubling the number of "
+        r"\(k_z\) values, doubling the subdivision or halving the mesh spacing changes the bulk pair spectrum by less "
+        "than 0.3 %. For 15-layer slabs the mirror-pair spectrum is within 1.5 % of that weighted sum at all "
+        "energies for rhombohedral stacking and within about 3 % above 27 meV for hexagonal stacking; for the bulk, "
+        "where the pairs are "
+        r"taken at the same \(k_z\), within 0.5 % for both.</p>",
+    ]
+
+
+def write_report(path, table, info, raman_min, raman_max, figures, slabs=None, slab_info=None,
+                 spectra=None, pairs=None, pair_info=None, linewidth=500.0, standalone=True):
     """
     Self-contained HTML page (figures embedded) in the style of make_report.py.
-    The mathematics is written in LaTeX and typeset by MathJax, which the page
-    loads from a CDN.  With standalone=False the document skeleton (doctype,
-    html, head and body tags) is left out, for a publisher that adds its own.
+    ``figures`` maps 'comparison', 'window', 'slabs', 'ers' and 'pairs' to the
+    image files of the sections that are present.  The mathematics is written
+    in LaTeX and typeset by MathJax, which the page loads from a CDN.  With
+    standalone=False the document skeleton (doctype, html, head and body tags)
+    is left out, for a publisher that adds its own.
     """
     from make_report import STYLE, img_tag, table as html_table
 
@@ -799,7 +1224,7 @@ def write_report(path, table, info, raman_min, raman_max, fig_comparison, fig_wi
         "</ul>")
 
     s.append("<h2>Density of states of the two polytypes</h2>")
-    s.append(f"<figure>{img_tag(fig_comparison, 'DOS of hexagonal and rhombohedral bulk graphite versus energy')}"
+    s.append(f"<figure>{img_tag(figures['comparison'], 'DOS of hexagonal and rhombohedral bulk graphite versus energy')}"
              "<figcaption>Figure 1. DOS of hexagonal (blue) and rhombohedral (orange) bulk graphite, energies measured "
              "from the Fermi level of each crystal. Inset: the 100 meV around the Fermi level. Spin and valley "
              "degeneracy included; the right axis gives the same curves per volume.</figcaption></figure>")
@@ -825,11 +1250,11 @@ def write_report(path, table, info, raman_min, raman_max, fig_comparison, fig_wi
         "</ul>")
 
     s.append("<h2>Energies accessible to the Raman spectrometer</h2>")
-    s.append(f"<figure>{img_tag(fig_window, 'DOS with the energy range of the Raman spectrometer shaded')}"
+    s.append(f"<figure>{img_tag(figures['window'], 'DOS with the energy range of the Raman spectrometer shaded')}"
              f"<figcaption>Figure 2. The same DOS with the energies reached by Raman shifts of {raman_min:g}–{raman_max:g} "
              f"{CM1} shaded: {DE} = {e_lo:.0f}–{e_hi:.0f} meV on both sides of the Fermi level. "
-             f"The top axis gives the Raman shift of the {PAIR} excitation that connects "
-             r"\(-E\) and \(+E\).</figcaption></figure>")
+             f"The top axis gives the same energies in {CM1}. A Raman shift is the distance on it between a hole and "
+             "an electron energy; the arrow marks the largest one.</figcaption></figure>")
     s.append(html_table(
         [f"Raman shift ({CM1})", f"{DE} (meV)", "hexagonal", "rhombohedral", "rhombohedral / hexagonal"],
         [(f"{w:.0f}", f"{e:.1f}", f"{100 * h:.3f}", f"{100 * r:.3f}", f"{q:.2f}") for w, e, h, r, q in rows],
@@ -901,9 +1326,12 @@ def write_report(path, table, info, raman_min, raman_max, fig_comparison, fig_wi
              "python graphite_ers_background.py --from-csv examples/graphite_ers_dos.csv --raman-min 50   # replot only</pre>")
 
     if slabs is not None:
-        s.extend(_slab_section(slabs, slab_info, table, info, raman_min, raman_max, fig_slabs))
-    if curves is not None:
-        s.extend(_thermal_section(curves, table, info, slabs, slab_info, raman_min, raman_max, temperature, fig_thermal))
+        s.extend(_slab_section(slabs, slab_info, table, info, raman_min, raman_max, figures["slabs"]))
+    if spectra:
+        s.extend(_ers_section(spectra, pairs, raman_min, raman_max, linewidth, figures["ers"]))
+    if pairs is not None:
+        layers = slab_info["layers"] if slabs is not None else pair_info["layers"]
+        s.extend(_pair_section(pairs, pair_info, table, raman_min, raman_max, linewidth, layers, figures["pairs"]))
 
     s.append("<h2>References</h2>")
     s.append(
@@ -944,8 +1372,10 @@ def main(argv=None):
                     help="layer numbers of the finite slabs (none: skip the slabs); a slab table "
                          "next to --from-csv is reused")
     ap.add_argument("--slab-dk", type=float, default=1.0e-3, help="in-plane mesh spacing for the slabs (1/A)")
-    ap.add_argument("--temperature", type=float, default=300.0,
-                    help="temperature (K) of the thermally broadened curves (0: skip them)")
+    ap.add_argument("--linewidth", type=float, default=500.0,
+                    help="ERS line width (1/cm, full width at half maximum on the Raman-shift axis)")
+    ap.add_argument("--ers-spectra", nargs="*", default=None, metavar="FILE",
+                    help="calculated ERS spectra to compare with (default: examples/ers_calculations/*.dat)")
     ap.add_argument("--page-only", default=None, metavar="PATH",
                     help="also write the report without its document skeleton, for a publisher that adds its own")
     ap.add_argument("--show", action="store_true")
@@ -960,7 +1390,7 @@ def main(argv=None):
         table, info = compute(n_kz=args.n_kz, dk=args.dk, refine=args.refine, sigma=args.sigma)
         save_csv(args.prefix + ".csv", table, info)
         print(f"table written to {args.prefix}.csv")
-    slabs = slab_info = fig_slabs = None
+    slabs = slab_info = None
     slab_csv = (args.from_csv[:-len(".csv")] if args.from_csv else args.prefix) + "_slabs.csv"
     if args.from_csv and os.path.exists(slab_csv):
         slabs, slab_info = load_slabs_csv(slab_csv)
@@ -969,27 +1399,51 @@ def main(argv=None):
         slabs, slab_info = compute_slabs(args.slabs, dk=args.slab_dk)
         save_slabs_csv(slab_csv, slabs, slab_info)
         print(f"slab table written to {slab_csv}")
+    files = args.ers_spectra if args.ers_spectra is not None else sorted(glob.glob(os.path.join(ERS_DIR, "*.dat")))
+    spectra = [load_ers_spectrum(f) for f in files]
+    for spectrum in (sp for sp in spectra if sp["key"] is None):
+        print(f"skipping {spectrum['path']}: {spectrum['name']} is neither rhombohedral nor hexagonal")
+    spectra = [sp for sp in spectra if sp["key"]]
+    pairs = pair_info = None
+    pair_layers = sorted(set(slab_info["layers"] if slabs is not None else []) | {sp["layers"] for sp in spectra})
+    pair_csv = slab_csv[:-len("_slabs.csv")] + "_pairs.csv"
+    if args.from_csv and os.path.exists(pair_csv):
+        pairs, pair_info = load_pairs_csv(pair_csv)
+        if not set(pair_layers) <= set(pair_info["layers"]):
+            pairs = None
+    if pairs is None and pair_layers:
+        mlg.set_parameters(**info["parameters"])
+        pairs, pair_info = compute_pair_spectra(pair_layers, dk=args.slab_dk)
+        save_pairs_csv(pair_csv, pairs, pair_info)
+        print(f"mirror-pair table written to {pair_csv}")
+    if pairs is not None and "ab_bulk" not in pairs:
+        mlg.set_parameters(**info["parameters"])
+        pairs, pair_info = compute_bulk_pair_spectra(pairs, pair_info, info, n_kz=info["n_kz"], dk=info["dk"],
+                                                     refine=info["ab"]["refine"])
+        save_pairs_csv(pair_csv, pairs, pair_info)
+        print(f"bulk mirror-pair spectra added to {pair_csv}")
+
     report(table, info, args.raman_min, args.raman_max)
-    fig_comparison, fig_window = args.prefix + "_comparison.png", args.prefix + "_raman_window.png"
-    plot_comparison(table, info, fig_comparison)
-    plot_raman_window(table, info, fig_window, args.raman_min, args.raman_max)
-    print(f"figures written to {fig_comparison} and {fig_window}")
+    figures = {"comparison": args.prefix + "_comparison.png", "window": args.prefix + "_raman_window.png"}
+    plot_comparison(table, info, figures["comparison"])
+    plot_raman_window(table, info, figures["window"], args.raman_min, args.raman_max)
     if slabs is not None:
-        fig_slabs = args.prefix + "_slabs.png"
-        plot_slabs(slabs, slab_info, table, info, fig_slabs, args.raman_min, args.raman_max)
-        print(f"slab figure written to {fig_slabs}")
-    curves = fig_thermal = None
-    if args.temperature > 0.0:
-        curves = thermal_curves(table, info, slabs, slab_info, args.temperature)
-        fig_thermal = args.prefix + "_thermal.png"
-        plot_thermal(curves, table, info, slab_info, fig_thermal, args.raman_min, args.raman_max, args.temperature)
-        print(f"thermally broadened figure written to {fig_thermal}")
-    write_report(args.prefix + "_report.html", table, info, args.raman_min, args.raman_max, fig_comparison, fig_window,
-                 slabs, slab_info, fig_slabs, curves, args.temperature, fig_thermal)
+        figures["slabs"] = args.prefix + "_slabs.png"
+        plot_slabs(slabs, slab_info, table, info, figures["slabs"], args.raman_min, args.raman_max)
+    if spectra:
+        figures["ers"] = args.prefix + "_ers_calculation.png"
+        plot_ers_calculation(spectra, pairs, figures["ers"], args.raman_min, args.raman_max, args.linewidth)
+    if pairs is not None:
+        figures["pairs"] = args.prefix + "_raman_axis.png"
+        plot_pair_spectra(pairs, table, figures["pairs"], args.raman_min, args.raman_max, args.linewidth,
+                          slab_info["layers"] if slabs is not None else pair_info["layers"])
+    print("figures written to " + ", ".join(figures.values()))
+    arguments = (table, info, args.raman_min, args.raman_max, figures, slabs, slab_info, spectra, pairs, pair_info,
+                 args.linewidth)
+    write_report(args.prefix + "_report.html", *arguments)
     print(f"report written to {args.prefix}_report.html")
     if args.page_only:
-        write_report(args.page_only, table, info, args.raman_min, args.raman_max, fig_comparison, fig_window,
-                     slabs, slab_info, fig_slabs, curves, args.temperature, fig_thermal, standalone=False)
+        write_report(args.page_only, *arguments, standalone=False)
         print(f"page without skeleton written to {args.page_only}")
     if args.show:
         plt.show()

@@ -36,7 +36,7 @@ import multilayer_graphene as mlg
 
 __all__ = [
     "D_LAYER", "bulk_period", "bulk_hamiltonian", "bulk_eigenvalues",
-    "atomic_density", "calculate_bulk_density_of_states",
+    "atomic_density", "calculate_bulk_density_of_states", "calculate_bulk_pair_spectrum",
 ]
 
 D_LAYER = 3.35                  # interlayer distance (A)
@@ -163,6 +163,60 @@ def _add_cells(cumulative, corners, area, edges):
                 corners[tri, :, b].T, area, edges)
 
 
+def _add_pairs(cumulative, corners, area, edges, fermi):
+    """
+    Add the triangles of square cells to the cumulative count of mirror pairs:
+    the n-th band below and the n-th band above the middle of the spectrum,
+    counted at the energy difference of the two.  A triangle counts with the
+    fraction of its corners at which the lower band is filled and the upper
+    one empty.  corners: (4, n_cells, n_bands) as in ``_add_cells``.
+    """
+    half = corners.shape[-1] // 2
+    for n in range(half):
+        lower, upper = corners[:, :, half - 1 - n], corners[:, :, half + n]
+        excitation = upper - lower
+        allowed = ((lower < fermi) & (upper > fermi)).astype(float)
+        for tri in ([0, 1, 2], [0, 2, 3]):
+            cumulative += mlg._cumulative_states_triangles(excitation[tri].T, area * allowed[tri].mean(axis=0), edges)
+
+
+def _mesh_slices(blocks, p, a_lat, k_max, dk, n_kz, refine, centre, window):
+    """
+    Band energies of the k_z slices on the in-plane mesh around K.  For each of
+    n_kz values of k_z in half of its period yields (E, corners, fine,
+    subcells): E of shape (n, n, 2p) on the coarse mesh, corners
+    (4, n - 1, n - 1, 2p) the energies at the corners of its cells, fine the
+    cells in which a band comes within ``window`` of ``centre``, and subcells
+    (4, cells, 2p) the corner energies of their subdivision by ``refine`` (None
+    if no cell is subdivided).
+    """
+    n_side = int(np.ceil(2.0 * k_max / dk)) + 1
+    t = np.linspace(-k_max, k_max, n_side)
+    h = t[1] - t[0]
+    K = mlg.K_point(+1, a_lat)
+    gx, gy = np.meshgrid(K[0] + t, K[1] + t, indexing="ij")
+    u_coarse = mlg.structure_factor(gx, gy, a_lat)
+    sub = np.arange(refine + 1) * (h / refine)
+    for phase in (np.arange(n_kz) + 0.5) * np.pi / (p * n_kz):
+        E = _eigenvalues(_hamiltonian(u_coarse, phase, blocks))
+        corners = np.stack([E[:-1, :-1], E[:-1, 1:], E[1:, 1:], E[1:, :-1]])
+        fine = subcells = None
+        if refine > 1:
+            fine = np.any((corners.min(axis=0) < centre + window) & (corners.max(axis=0) > centre - window), axis=-1)
+            if fine.any():
+                i, j = np.nonzero(fine)
+                fx = gx[i, j][:, None, None] + sub[None, :, None]
+                fy = gy[i, j][:, None, None] + sub[None, None, :]
+                Ef = _eigenvalues(_hamiltonian(mlg.structure_factor(fx, fy, a_lat), phase, blocks))
+                subcells = np.stack([Ef[:, :-1, :-1], Ef[:, :-1, 1:], Ef[:, 1:, 1:], Ef[:, 1:, :-1]]).reshape(4, -1, 2 * p)
+        yield E, corners, fine, subcells
+
+
+def _refinement_taper(x, centre, window):
+    """1 inside the refined energy window around ``centre``, rolled off to 0 over its outer fifth."""
+    return np.cos(0.5 * np.pi * np.clip((np.abs(x - centre) / window - 0.8) / 0.2, 0.0, 1.0)) ** 2
+
+
 def calculate_bulk_density_of_states(energy_range=(-1.0, 1.0), stacking_type="ab", n_kz=240,
                                      dk=2.0e-3, refine=8, refine_window=0.12,
                                      fermi_guess=None, k_max=None, num_energy_points=2000,
@@ -223,12 +277,7 @@ def calculate_bulk_density_of_states(energy_range=(-1.0, 1.0), stacking_type="ab
             k_max=k_max, num_energy_points=num_energy_points, params=params)["fermi_energy"]
 
     n_side = int(np.ceil(2.0 * k_max / dk)) + 1
-    t = np.linspace(-k_max, k_max, n_side)
-    h = t[1] - t[0]
-    K = mlg.K_point(+1, a_lat)
-    gx, gy = np.meshgrid(K[0] + t, K[1] + t, indexing="ij")
-    u_coarse = mlg.structure_factor(gx, gy, a_lat)
-    sub = np.arange(refine + 1) * (h / refine)
+    h = 2.0 * k_max / (n_side - 1)
     border = np.ones((n_side, n_side), dtype=bool)
     border[1:-1, 1:-1] = False
 
@@ -237,24 +286,13 @@ def calculate_bulk_density_of_states(energy_range=(-1.0, 1.0), stacking_type="ab
     cumulative = np.zeros((2, edges.size))
     correction = np.zeros((2, edges.size))
     n_border = n_fine = 0
-    for phase in (np.arange(n_kz) + 0.5) * np.pi / (p * n_kz):
-        E = _eigenvalues(_hamiltonian(u_coarse, phase, blocks))
+    for E, corners, fine, subcells in _mesh_slices(blocks, p, a_lat, k_max, dk, n_kz, refine, fermi_guess, refine_window):
         e_border = E[border]
         n_border += int(np.count_nonzero((e_border > e_min) & (e_border < e_max)))
-        corners = np.stack([E[:-1, :-1], E[:-1, 1:], E[1:, 1:], E[1:, :-1]])
         _add_cells(cumulative, corners.reshape(4, -1, 2 * p), 0.5 * h * h, edges)
-        if refine == 1:
-            continue
-        fine = np.any((corners.min(axis=0) < fermi_guess + refine_window)
-                      & (corners.max(axis=0) > fermi_guess - refine_window), axis=-1)
-        if fine.any():
-            i, j = np.nonzero(fine)
-            n_fine += i.size
-            fx = gx[i, j][:, None, None] + sub[None, :, None]
-            fy = gy[i, j][:, None, None] + sub[None, None, :]
-            Ef = _eigenvalues(_hamiltonian(mlg.structure_factor(fx, fy, a_lat), phase, blocks))
-            subcells = np.stack([Ef[:, :-1, :-1], Ef[:, :-1, 1:], Ef[:, 1:, 1:], Ef[:, 1:, :-1]])
-            _add_cells(correction, subcells.reshape(4, -1, 2 * p), 0.5 * (h / refine) ** 2, edges)
+        if subcells is not None:
+            n_fine += int(np.count_nonzero(fine))
+            _add_cells(correction, subcells, 0.5 * (h / refine) ** 2, edges)
             _add_cells(correction, corners[:, fine], -0.5 * h * h, edges)
     if n_border:
         print(f"Warning: {n_border} border states of the k window lie inside the energy "
@@ -268,10 +306,8 @@ def calculate_bulk_density_of_states(energy_range=(-1.0, 1.0), stacking_type="ab
     bin_width = edges[1] - edges[0]
     dos_slab = np.diff(cumulative.sum(axis=0)) / bin_width
     if refine > 1:
-        # keep the refinement inside its window, rolled off over the outer fifth
-        x = np.abs(centres - fermi_guess) / refine_window
-        taper = np.cos(0.5 * np.pi * np.clip((x - 0.8) / 0.2, 0.0, 1.0)) ** 2
-        dos_slab += taper * np.diff(correction.sum(axis=0)) / bin_width
+        # keep the refinement inside its window
+        dos_slab += _refinement_taper(centres, fermi_guess, refine_window) * np.diff(correction.sum(axis=0)) / bin_width
         cumulative += correction        # exact state count, used for the Fermi level
     per_atom = mlg.unit_cell_area(a_lat) / (2.0 * p)
     per_volume = 1.0 / (p * D_LAYER)
@@ -309,5 +345,80 @@ def calculate_bulk_density_of_states(energy_range=(-1.0, 1.0), stacking_type="ab
             "fermi_guess": fermi_guess, "k_max": k_max,
             "num_energy_points": int(num_energy_points), "gaussian_sigma": gaussian_sigma,
             "d_layer": D_LAYER, **params,
+        },
+    }
+
+
+
+def calculate_bulk_pair_spectrum(edges, stacking_type="ab", fermi=0.0, n_kz=240, dk=2.0e-3, refine=8,
+                                 refine_window=0.12, k_max=None, params=None, verbose=False):
+    """
+    Joint density of states of the mirror pairs n- -> n+ of bulk graphite: the
+    n-th band below and the n-th band above the middle of the spectrum (two
+    pairs for Bernal, one for rhombohedral stacking), at the same wave vector,
+    with the occupation of T = 0,
+
+        J(w) = sum_n  int d^3k / (2 pi)^3  theta(E_F - e_n-) theta(e_n+ - E_F)
+               delta(hbar w - e_n+(k) + e_n-(k)),
+
+    per atom, spin and valley included.  The integration is that of
+    ``calculate_bulk_density_of_states``, applied to the energy difference of
+    the pair: triangles on an in-plane mesh for each k_z, cells near the Fermi
+    level subdivided, the subdivision used for hbar w below ``refine_window``.
+
+    Args:
+        edges: bin edges of the excitation energy hbar w (eV), equally spaced
+        stacking_type: 'ab' (Bernal), 'abc' (rhombohedral) or a repeat unit
+        fermi: Fermi level on the energy scale of the model (eV), for instance
+               'fermi_energy' of ``calculate_bulk_density_of_states``
+        n_kz, dk, refine, refine_window, k_max, params: as for the DOS
+
+    Returns a dict with 'excitation' (bin centres, eV), 'pairs_per_atom'
+    (pairs/(eV atom)), 'edges' and 'parameters'.
+    """
+    params = mlg.get_parameters() if params is None else {**mlg.get_parameters(), **params}
+    seq, p = bulk_period(stacking_type)
+    blocks = _bulk_blocks(seq, p, params)
+    edges = np.asarray(edges, dtype=float)
+    refine = max(1, int(refine))
+    a_lat = params["a"]
+    if k_max is None:
+        hv = 1.5 * (a_lat / np.sqrt(3.0)) * params["gamma0"]
+        k_max = (0.6 * edges[-1] + 2.0 * abs(params["gamma1"]) + 0.15) / hv
+    n_side = int(np.ceil(2.0 * k_max / dk)) + 1
+    h = 2.0 * k_max / (n_side - 1)
+    border = np.ones((n_side, n_side), dtype=bool)
+    border[1:-1, 1:-1] = False
+
+    cumulative = np.zeros(edges.size)
+    correction = np.zeros(edges.size)
+    lowest_on_border = np.inf
+    for E, corners, fine, subcells in _mesh_slices(blocks, p, a_lat, k_max, dk, n_kz, refine, fermi, refine_window):
+        on_border = E[border]
+        lowest_on_border = min(lowest_on_border, (on_border[:, p:] - on_border[:, p - 1::-1]).min())
+        _add_pairs(cumulative, corners.reshape(4, -1, 2 * p), 0.5 * h * h, edges, fermi)
+        if subcells is not None:
+            _add_pairs(correction, subcells, 0.5 * (h / refine) ** 2, edges, fermi)
+            _add_pairs(correction, corners[:, fine], -0.5 * h * h, edges, fermi)
+    if lowest_on_border < edges[-1]:
+        print(f"Warning: pairs on the border of the k window start at {lowest_on_border:.3f} eV, inside the "
+              f"range of excitation energies; increase k_max (currently {k_max:.3f} 1/A).")
+
+    centres = 0.5 * (edges[:-1] + edges[1:])
+    spectrum = np.diff(cumulative) / np.diff(edges)
+    if refine > 1:
+        # a pair below refine_window has both of its bands inside the refined cells
+        spectrum += _refinement_taper(centres, 0.0, refine_window) * np.diff(correction) / np.diff(edges)
+    spectrum *= 4.0 / (2.0 * np.pi) ** 2 / n_kz * mlg.unit_cell_area(a_lat) / (2.0 * p)
+    if verbose:
+        print(f"bulk pair spectrum: {seq} ({p} layer(s) per primitive cell), {n_kz} k_z values, "
+              f"{n_side}^2 coarse k points, E_F = {fermi * 1e3:.2f} meV")
+    return {
+        "excitation": centres,
+        "edges": edges,
+        "pairs_per_atom": spectrum,
+        "parameters": {
+            "stacking": seq, "layers_per_cell": p, "fermi_energy": fermi, "n_kz": n_kz, "dk": dk, "refine": refine,
+            "refine_window": refine_window, "k_max": k_max, "d_layer": D_LAYER, **params,
         },
     }

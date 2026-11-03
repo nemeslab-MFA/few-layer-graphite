@@ -132,13 +132,27 @@ for another Raman range without recomputing.  `--slabs 20 50 100` (the default)
 adds the DOS of finite slabs of both stackings from `multilayer_graphene.py`,
 in `examples/graphite_ers_dos_slabs.png` and `_slabs.csv` and as the last
 section of the report; the slabs are diagonalised in parallel processes with
-one BLAS thread each.  `--temperature 300` (the default) adds
-`examples/graphite_ers_dos_thermal.png` and a last section with the bulk and
-slab curves convolved with the derivative of the Fermi function,
-sech²(E/2kT)/4kT, of full width 3.53 kT (91 meV at 300 K).  The mathematics of
-the report is written in LaTeX and typeset by MathJax, which the page loads
-from a CDN; `--page-only PATH` also writes the page without its document
-skeleton, for a publisher that adds its own.  With the default parameters:
+one BLAS thread each.
+
+A Raman shift is the difference between an electron and a hole energy, so the
+last two sections of the report work on that difference itself.
+`mirror_pair_spectrum` is the joint density of states of the mirror pairs
+n⁻ → n⁺ of a slab (Eq. 5 of García-Ruiz et al. with the σ_z matrix element of a
+mirror pair set to 1, occupation of T = 0).  It is set against ERS spectra
+calculated for whole films, read from `examples/ers_calculations/*.dat`
+(`--ers-spectra`), in `examples/graphite_ers_dos_ers_calculation.png`, and drawn
+for the thicker slabs and the bulk in `examples/graphite_ers_dos_raman_axis.png`,
+as computed and broadened to the measured ERS line width (`--linewidth`, 500 cm⁻¹
+at half maximum on the Raman-shift axis); the spectra are kept in `_pairs.csv`.
+The bulk spectrum is `bulk_graphite.calculate_bulk_pair_spectrum`, the same
+integral over the three-dimensional zone with the pairs taken at equal k_z.  In
+hexagonal slabs counting bands from the middle of the spectrum does not find
+the mirror partner near the Fermi level, where the bilayer-like subbands
+overlap, so their spectra below 60 meV are the sum over all pairs of bands
+weighted by |⟨c|σ_z|v⟩|² (`sigma_z_pair_spectrum`).
+The mathematics of the report is written in LaTeX and typeset by MathJax, which
+the page loads from a CDN; `--page-only PATH` also writes the page without its
+document skeleton, for a publisher that adds its own.  With the default parameters:
 
 - hexagonal graphite has 2.0×10¹⁸ cm⁻³ carriers of each sign and a Fermi-level
   DOS of 4.9×10⁻³ states eV⁻¹ atom⁻¹; rhombohedral graphite has the linear DOS
@@ -151,10 +165,16 @@ skeleton, for a publisher that adds its own.  With the default parameters:
   bulk continuum into subbands whose −n and +n peaks are 4γ1 sin[(n + ½)π/(2N + 1)]
   apart (first ERS peak at 1443, 587 and 295 cm⁻¹), and their surface band pins
   E_F about 20 meV below the bulk Dirac energy;
-- broadened at 300 K the subband ladders disappear and the rhombohedral /
-  hexagonal ratio at 80 cm⁻¹ becomes 0.26 in the bulk and 0.66, 0.43 and 0.35
-  for 20, 50 and 100 layers (surface band); from 2000 cm⁻¹ upwards the slabs
-  are within 7 % of the bulk ratio.
+- the ERS spectrum calculated for a 15-layer rhombohedral film is reproduced by
+  the mirror-pair spectrum to 1.1 % with one scale factor, with all six peaks on
+  the same 3 meV bin; the peaks follow 2γ1 sin[(n + ½)π/(N + ½)];
+- broadened to 500 cm⁻¹ the strongest subband peak stands 16 % above the minimum
+  after it for 15 layers and 6 % for 20 layers, and no peak is left at 50 and
+  100 layers; the hexagonal spectra have no peak at any thickness;
+- the bulk pair spectrum of rhombohedral graphite equals D(E_F ± ħω/2)/2 to
+  0.3 %; for hexagonal graphite the DOS rule is 1.3 % too high above 500 cm⁻¹
+  and misses the fall of the spectrum below about 250 cm⁻¹, where the pockets
+  of the semimetal block the pairs (2.8 times too high at 80 cm⁻¹, T = 0).
 
 ## Tests
 
@@ -171,7 +191,10 @@ the SWMcC energies on the K–H line, that bulk Bloch states solve the
 finite-stack Hamiltonian in its interior, the DOS in the γ0, γ1 limit
 (graphene for ABC, the k_z average of bilayers for AB) and the mesh refinement;
 for the ERS script, the Fermi level of a slab, the Raman shift to energy mapping,
-the thermal kernel, the tables written to disk and the report.
+the mirror-pair spectrum (bilayer in closed form, σ_z-weighted sum over all pairs
+of bands for both stackings), the line-width kernel, the tables written to disk
+and the report; for the bulk pair spectrum, the closed forms of the γ0, γ1 limit
+and the comparison with the DOS.
 
 ## Other scripts
 

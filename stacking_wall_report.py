@@ -91,11 +91,6 @@ def page(tags, img_prefix=""):
             f'<figure><img src="{img_prefix}stacking_wall_{t}.png" alt="dI/dV and model LDOS, line spectrum {t}">'
             f"<figcaption>Line spectrum {t}, l = {d['fit']['ell']:.1f} nm. Top: measured dI/dV(V, x) and top-layer "
             f"LDOS(E, x). Middle: bias derivatives. Bottom: fitted profile and spectra at three positions.</figcaption></figure>")
-    for d in infos:
-        t = d["tag"]
-        figs.append(
-            f'<figure><img src="{img_prefix}stacking_wall_layers_{t}.png" alt="layer-resolved LDOS, line spectrum {t}">'
-            f"<figcaption>Line spectrum {t}: d(LDOS)/dE of every layer, layer 1 at the top.</figcaption></figure>")
 
     return f"""<title>Stacking Wall LDOS</title>
 <meta name="claude:viewport-fit-sides" content="cover">
@@ -141,8 +136,8 @@ rigidly so that its (+⁵) flat band sits on the measured one.</p>
 
 <h2>What the model reproduces, and its limits</h2>
 <ul>
-<li>Flat-band peak on the (+⁵) surface; on the (+⁴−) surface it is absent and sits in layer 2. The (+⁵) gap
-faces the V-shaped surface band of (+⁴−).</li>
+<li>Flat-band peak on the (+⁵) surface; on the (+⁴−) surface it is absent and sits in layer 2 (layer-resolved
+maps in <code>examples/stacking_wall_layers_*.png</code>). The (+⁵) gap faces the V-shaped surface band of (+⁴−).</li>
 <li>Quasiparticle-interference fringes fan out from the wall on the (+⁴−) top layer only, as in Fig. 2 and 3
 of the paper; none inside the (+⁵) gap.</li>
 <li>The fitted l is an apparent LDOS width that includes the lateral extent of the surface states, not the

@@ -260,6 +260,35 @@ differently in the two measurements); no layer-dependent doping is included
 (`layer_potential` of `ldos_wall` accepts one).  The raw `.sm4` files are not
 part of the repository.
 
+### Tip-induced band bending at the wall
+
+Near the wall the measured flat-band peak moves as it fades: up in spectrum 514
+(seen at positive bias, +22 → +55 mV) and down in spectrum 940 (negative bias,
+−32 → −88 mV).  `stacking_wall_tibb.py` tests the tip-gating explanation with
+the [bandbending](https://github.com/nemeslab-MFA/bandbending) engine
+(Hartree + γ0/γ1 tight binding under a hyperbolic tip; `pip install -e` that
+repository first).  In the local approximation three laterally uniform stacks
+are solved under the same tip on 90 nm SiO₂: (+⁵) far from the wall, the wall
+(top dimer shared between the (+⁵) bond with weight 1 − s and the (+⁴−) bond
+with weight s) and (+⁴−).  `WallTB` evaluates the wall Hamiltonian, whose bond
+loop carries the phase of the structure factor, with a complex Hamiltonian
+averaged over that phase (it reproduces the engine's end members exactly and a
+brute-force zone sum to 1 %); `WallSimulation` injects it into the engine.  The
+doping follows from the measured flat-band energy, the tip contact potential
+from the fit of the simulated (+⁵) spectrum (`tunneling_spectrum`, band-bending
+term, WKB barrier, lock-in broadening) to the measurement far from the wall;
+the wall and the (+⁴−) stack then use the same tip and the same fixed charge
+per layer.
+
+```
+python stacking_wall_tibb.py --sm4 ..._514.sm4 --tag 514 --x-sf 22 --x-rg 55
+python stacking_wall_tibb_figure.py --tags 514 940
+```
+
+Results go to `examples/stacking_wall_tibb_TAG.json` (scan, sweeps, spectra)
+and `examples/stacking_wall_tibb.png`; the report collects them in its last
+section.
+
 ## Tests
 
 ```

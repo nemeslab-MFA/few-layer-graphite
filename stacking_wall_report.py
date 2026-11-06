@@ -146,6 +146,43 @@ structural soliton width.</li>
 saddle-point stacking of the real shift path; no layer-dependent doping is included.</li>
 <li>The k·p trigonal-warping legs extend to large momentum, so the LDOS is reliable within about ±0.4 eV.</li>
 </ul>
+<h2>Why the flat band bends at the wall</h2>
+<p>Close to the wall the flat-band peak does not only fade, it moves: in spectrum 514, where the band is
+mostly empty and seen at positive bias, it climbs from +22 mV to about +55 mV; in spectrum 940, where it is
+mostly filled and seen at negative bias, it sinks from −32 mV to about −88 mV. The electrostatics-free model
+shifts it by only +5 meV in both cases, so the bend is not in the band structure. It is the tip gating the
+sample.</p>
+<p>The tunnel junction is a capacitor with the sample as one plate. How much of the bias drops across the
+vacuum gap and how much inside the sample depends on how easily the surface under the tip can pile up or
+shed charge. A large density of states at the Fermi level means a tiny change of potential moves a lot of
+charge, so the surface screens the tip almost perfectly and the whole bias falls across the gap. The flat
+band is exactly such a reservoir, about 10¹³ states per cm² within some 10 meV: far from the wall the
+top layer behaves like a metal plate, the bands inside do not move, and the peak sits at its true energy.
+At the wall the flat-band states leave the top layer (they sit in layer 2 on the stacking-fault side).
+What is left under the tip is the Dirac cone of the (+⁴−) surface near its node, a hundred times fewer
+states. The surface turns from a metal plate into a thin semiconductor, the field of the tip now reaches
+into it, and a fraction f of the bias drops inside the sample: the local bands shift rigidly by f·eV.</p>
+<p>The direction follows the sign of the bias, not the filling of the band. At positive sample bias the tip
+is negative with respect to the sample; it pushes electrons away and lifts the local bands, so a state that
+is truly at E<sub>FB</sub> is only reached at a larger bias and the peak appears higher. At negative bias
+the tip pulls electrons in, the bands bend down and the peak appears lower. The filling of the flat band
+only decides which sign of bias is needed to see it: an empty band is seen at positive bias and bends up,
+a filled one at negative bias and bends down. The effect feeds back on itself, because the bending moves
+the peak further from zero bias, where it is measured, so V<sub>app</sub> = E<sub>FB</sub> / [e(1 − f)].
+Both spectra give the same f ≈ 0.6 where the peak has lost two thirds of its height, with opposite bias;
+in 940 a feature at +69 mV on the stacking-fault side bends up by 50 to 90 mV next to the same wall where
+the flat band bends down, which rules out a fixed offset such as the polarization of the (+⁴−) stack.</p>
+<div class="tablewrap"><table>
+<tr><th>line spectrum</th><th>flat band far from the wall</th><th>at one third peak height</th><th>shift</th><th>f = 1 − V<sub>far</sub>/V<sub>app</sub></th></tr>
+<tr><td>514 (band mostly empty)</td><td>+22 mV</td><td>+49 to +60 mV</td><td>+27 to +38 mV</td><td>0.54 to 0.62</td></tr>
+<tr><td>940 (band mostly filled)</td><td>−32 mV</td><td>−88 mV</td><td>−56 mV</td><td>0.63</td></tr>
+</table></div>
+<p>Scale: a 0.7 nm gap gives C<sub>gap</sub> = ε₀/d ≈ 13 mF m⁻². The intact flat band has
+C<sub>q</sub> = e²D ≈ 1.6 F m⁻², so f ≈ 0.01 and the bending stays below 1 mV: the band is pinned. f ≈ 0.6 needs
+C<sub>q</sub> ≈ 9 mF m⁻², i.e. D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻², the value of the (+⁴−) surface cone
+10 to 20 meV from its Dirac point. The sign reversal between −30 and +70 mV in spectrum 940 also puts the
+flat-band voltage of the junction, set by the work-function difference of tip and sample, within a few tens
+of mV of zero.</p>
 <footer>Kandrai et al., arXiv:2610.20905 (2026) · few-layer-graphite, branch claude/eloquent-franklin-q9q4cb ·
 line spectra 514 and 940 are not part of the repository.</footer>
 </main>

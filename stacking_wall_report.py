@@ -78,6 +78,12 @@ def _peak(bias, y, centre, half=0.09):
     return float(bias[sel][np.argmax(y[sel])])
 
 
+def _minimum(bias, y, half=0.15):
+    bias, y = np.asarray(bias), np.asarray(y)
+    sel = (np.abs(bias) <= half) & np.isfinite(y)
+    return float(bias[sel][np.argmin(y[sel])])
+
+
 def _bending_at(sweep, V):
     """U_1(apex) - U_1(far) (eV) of the top layer at bias V, from a sweep record."""
     b = np.asarray(sweep["bias"])
@@ -98,7 +104,10 @@ def tibb_numbers(state):
     runs = state.get("runs", {})
     wall = next((runs[k] for k in runs if k.startswith("wall")), None)
     sf = runs.get("sf")
-    out = {"E_fb": E_fb, "meas_wall_peak": _peak(bias, meas["wall"], E_fb, 0.09)}
+    out = {"E_fb": E_fb, "meas_wall_peak": _peak(bias, meas["wall"], E_fb, 0.09),
+           "meas_sf_min": _minimum(bias, meas["sf"])}
+    if sf is not None and fine.size:
+        out["sf_min"] = _minimum(fine, sf["didv"])
     for key, run in (("rg", best), ("wall", wall), ("sf", sf)):
         if run is None or not fine.size:
             continue
@@ -108,6 +117,52 @@ def tibb_numbers(state):
         out[f"{key}_mu0"] = run["sweep"]["mu0"]
         out[f"{key}_residual"] = run["residual"]
     return out
+
+
+def tibb_text(states):
+    """Interpretation of the band-bending results, with the numbers of the result files."""
+    n = {t: tibb_numbers(st) for t, st in states.items()}
+    if any("wall_peak" not in v for v in n.values()):
+        return "<p>The wall and (+⁴−) calculations are not finished.</p>"
+    def shifts(t):
+        v = n[t]
+        return (1e3 * (v["meas_wall_peak"] - v["E_fb"]), 1e3 * (v["wall_peak"] - v["rg_peak"]),
+                1e3 * v["rg_bend"], 1e3 * v["wall_bend"], 1e3 * (v["wall_mu0"] - v["rg_mu0"]),
+                1e3 * v["meas_sf_min"], 1e3 * v["sf_min"], 1e3 * v["sf_bend"])
+    rows = {t: shifts(t) for t in n}
+    t1, t2 = list(n)[:2]
+    a, b = rows[t1], rows[t2]
+    return f"""<p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
+simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
+{a[1]:+.0f} mV in spectrum {t1} (measured {a[0]:+.0f} mV) and down by {b[1]:+.0f} mV in spectrum {t2}
+(measured {b[0]:+.0f} mV), so the sign follows the filling as observed, with {100 * a[1] / a[0]:.0f} % and
+{100 * b[1] / b[0]:.0f} % of the measured size. The tip, however, is not what moves it in this model: the
+band bending under the apex at the flat-band bias is {a[2]:+.0f} meV far on the (+⁵) side and {a[3]:+.0f} meV at
+the wall in {t1}, {b[2]:+.0f} and {b[3]:+.0f} meV in {t2}, so the tip-induced part of the shift is at most
+a few meV. At s = 0.75 the top layer keeps about a quarter of its flat-band states (4 × 10¹³ eV⁻¹ cm⁻² at
+E<sub>F</sub> with the 10 meV width), still a far better screen than the 0.013 F m⁻² of the vacuum gap, and
+the self-consistent solution confirms the pinning. The simulated shift comes instead from the charge balance of
+the wall stack: with the same fixed charge per layer, a top layer that has lost most of its flat-band states
+must move its bands to hold that charge ({a[4]:+.0f} meV in {t1}, {b[4]:+.0f} meV in {t2}, up for the empty
+band and down for the filled one), and the remaining top-layer weight sits on the far flank of the band, which
+adds the rest. The frozen-potential term alone (dashed) reproduces the full simulated peak position.</p>
+<p><b>The (+⁴−) side.</b> The simulated (+⁴−) spectra have the measured V shape (residuals
+{n[t1]['sf_residual']:.2f} and {n[t2]['sf_residual']:.2f}), but their minimum sits at {a[6]:+.0f} mV ({t1})
+and {b[6]:+.0f} mV ({t2}) where the measured minima are at {a[5]:+.0f} and {b[5]:+.0f} mV: the same fixed
+charge per layer puts the (+⁴−) Fermi level 30 to 40 meV from its neutrality point, while the real
+stacking-fault region sits near neutrality because its compensating charge can move into the buried flat band.
+The per-layer charge was the only way to place the (+⁵) flat band at the measured energy in this
+γ0/γ1 model (substrate traps alone pin it at E<sub>F</sub>); transferred to the other stacks it overstates
+their band offsets, so the intrinsic shift it produces at the wall is an upper estimate.</p>
+<p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
+bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
+states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and
+only on the (+⁴−) stack itself does the tip reach 15 to 30 meV of bending. What the local approximation cannot
+hold is the tip's field reaching across the wall into the (+⁴−) region, where screening is weak, while the
+tip sits over the fading flat band; that lateral problem, a Poisson solution with the wall in it, is the
+natural next step and is outside the axisymmetric engine. The fit of the (+⁵) spectra leaves the contact
+potential within about ±0.05 eV of zero, consistent with the sign reversal of the bend between the two
+measurements.</p>"""
 
 
 def tibb_section(tags, img_prefix=""):
@@ -158,7 +213,7 @@ factor free.</p>
 <figure><img src="{img_prefix}stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
 <figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
 term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
-TIBB_TEXT
+{tibb_text(states)}
 """
 
 

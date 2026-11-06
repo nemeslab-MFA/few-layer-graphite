@@ -135,6 +135,64 @@ C<sub>q</sub> ≈ 9 mF m⁻², i.e. D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm�
 10 to 20 meV from its Dirac point. The sign reversal between −30 and +70 mV in spectrum 940 also puts the
 flat-band voltage of the junction, set by the work-function difference of tip and sample, within a few tens
 of mV of zero.</p>
+
+<h2>Self-consistent tip-induced band bending (bandbending engine)</h2>
+<p>Three laterally uniform six-layer stacks under the same tip, each solved self-consistently
+(Hartree + γ0/γ1 tight binding, <code>GrapheneMultilayer</code> of the
+<a href="https://github.com/nemeslab-MFA/bandbending">bandbending</a> engine): the (+⁵) stack far from the
+wall, the wall itself with the top dimer shared between the (+⁵) bond (weight 1 − s) and the (+⁴−) bond
+(weight s, s = 0.75 at the position of the bend), and the (+⁴−) stack. The wall Hamiltonian closes
+a bond loop whose flux is the phase of the structure factor, so it is evaluated with a complex Hamiltonian
+averaged over that phase (<code>WallTB</code> in <code>stacking_wall_tibb.py</code>; it reproduces the
+engine's end members exactly and a brute-force zone sum to 1 %). Tip radius 20 nm,
+separation 0.7 nm, barrier 4.6 eV, 9 K, Gaussian
+width 10 meV of the tight-binding occupation and LDOS (the γ0/γ1 flat band is
+6 meV wide, the measured one 26 mV), lock-in 3.75 mV; 90 nm SiO₂ over the
+grounded Si. The doping is set from the measured flat-band energy of the (+⁵) side (the isolated stack is
+neutral with E<sub>F</sub> that far from its flat band); the fixed charge per layer this implies is used
+unchanged for the wall and the (+⁴−) stack, and the tip contact potential W<sub>tip</sub> − W<sub>sample</sub>
+is the value, scanned in 0.1 eV steps, at which the simulated (+⁵) spectrum (<code>tunneling_spectrum</code>:
+frozen-potential term plus band-bending term) is closest to the measurement far from the wall, one scale
+factor free.</p>
+<div class="tablewrap"><table>
+<tr><th>line spectrum</th><th>contact potential</th><th>E<sub>F</sub> − E<sub>CNP</sub></th><th>flat band (+⁵): measured / simulated</th><th>flat band at the wall: measured / simulated</th><th>U<sub>1</sub>(apex) − U<sub>1</sub>(far) at the peak: (+⁵) / wall / (+⁴−)</th><th>residual (+⁵) / wall / (+⁴−)</th></tr>
+<tr><td>514</td><td>+0.00 eV</td><td>-23 meV</td><td>+23 / +25 mV</td><td>+56 / +45 mV</td><td>+3 / +4 / -16 meV</td><td>0.32 / 0.34 / 0.38</td></tr><tr><td>940</td><td>+0.00 eV</td><td>+32 meV</td><td>-32 / -40 mV</td><td>-85 / -62 mV</td><td>-7 / -7 / +15 meV</td><td>0.32 / 0.36 / 0.27</td></tr>
+</table></div>
+<figure><img src="stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
+<figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
+term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
+<p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
+simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
++20 mV in spectrum 514 (measured +34 mV) and down by -22 mV in spectrum 940
+(measured -53 mV), so the sign follows the filling as observed, with 59 % and
+43 % of the measured size. The tip, however, is not what moves it in this model: the
+band bending under the apex at the flat-band bias is +3 meV far on the (+⁵) side and +4 meV at
+the wall in 514, -7 and -7 meV in 940, so the tip-induced part of the shift is at most
+a few meV. At s = 0.75 the top layer keeps about a quarter of its flat-band states (4 × 10¹³ eV⁻¹ cm⁻² at
+E<sub>F</sub> with the 10 meV width), still a far better screen than the 0.013 F m⁻² of the vacuum gap, and
+the self-consistent solution confirms the pinning. The simulated shift comes instead from the charge balance of
+the wall stack: with the same fixed charge per layer, a top layer that has lost most of its flat-band states
+must move its bands to hold that charge (-8 meV in 514, +11 meV in 940, up for the empty
+band and down for the filled one), and the remaining top-layer weight sits on the far flank of the band, which
+adds the rest. The frozen-potential term alone (dashed) reproduces the full simulated peak position.</p>
+<p><b>The (+⁴−) side.</b> The simulated (+⁴−) spectra have the measured V shape (residuals
+0.38 and 0.27), but their minimum sits at +50 mV (514)
+and -62 mV (940) where the measured minima are at +4 and +34 mV: the same fixed
+charge per layer puts the (+⁴−) Fermi level 30 to 40 meV from its neutrality point, while the real
+stacking-fault region sits near neutrality because its compensating charge can move into the buried flat band.
+The per-layer charge was the only way to place the (+⁵) flat band at the measured energy in this
+γ0/γ1 model (substrate traps alone pin it at E<sub>F</sub>); transferred to the other stacks it overstates
+their band offsets, so the intrinsic shift it produces at the wall is an upper estimate.</p>
+<p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
+bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
+states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and
+only on the (+⁴−) stack itself does the tip reach 15 to 30 meV of bending. What the local approximation cannot
+hold is the tip's field reaching across the wall into the (+⁴−) region, where screening is weak, while the
+tip sits over the fading flat band; that lateral problem, a Poisson solution with the wall in it, is the
+natural next step and is outside the axisymmetric engine. The fit of the (+⁵) spectra leaves the contact
+potential within about ±0.05 eV of zero, consistent with the sign reversal of the bend between the two
+measurements.</p>
+
 <footer>Kandrai et al., arXiv:2610.20905 (2026) · few-layer-graphite, branch claude/eloquent-franklin-q9q4cb ·
 line spectra 514 and 940 are not part of the repository.</footer>
 </main>

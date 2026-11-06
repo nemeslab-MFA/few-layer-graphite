@@ -176,6 +176,88 @@ document skeleton, for a publisher that adds its own.  With the default paramete
   and misses the fall of the spectrum below about 250 cm⁻¹, where the pockets
   of the semimetal block the pairs (2.8 times too high at 80 cm⁻¹, T = 0).
 
+## Stacking domain wall: (+⁴−) | (+⁵) in six-layer graphite
+
+`stacking_wall.py` models the single-layer stacking shift of the top graphene
+layer measured by STM in Kandrai *et al.*, *One-way electron mirrors from
+single-layer stacking shifts in rhombohedral graphite*, arXiv:2610.20905
+(2026): hexalayer rhombohedral graphite, Hägg sequence (+⁵) = ABCABC, meets the
+stacking fault (+⁴−) = ABCABA, whose top layer sits in the hexagonal position.
+On the (+⁵) surface the dI/dV shows the flat-band peak; on the (+⁴−) surface
+the flat band is buried one layer down and the top layer carries a Dirac-like
+surface band instead.
+
+The k·p SWMcC Hamiltonian of `multilayer_graphene` is linear in the momentum p
+from the valley centre, H_S(p) = C_S + p_x X_S + p_y Y_S (`kp_blocks`), and
+across the wall it is interpolated linearly between the two stackings,
+
+    H(x, p) = (1 − s(x)) H_(+⁵)(p) + s(x) H_(+⁴−)(p),    s(x) = [1 − tanh(x/l)] / 2,
+
+so that the dimer coupling γ1 of the top layer (A5–B6 → B5–A6), its skew
+couplings γ3, γ4, the next-nearest-layer couplings γ2, γ5 and the on-site
+energies Δ' of layers 5 and 6 all follow the same profile; the stacking fault
+is on the left (x < 0).  The wall is parallel to the armchair direction and
+k_y is conserved.  For each k_y the x-dependent problem is diagonalised in a
+plane-wave basis on a periodic cell (default 480 nm, 229 plane waves per
+orbital, |q| ≤ 0.15 Å⁻¹); the x-dependent terms are convolutions with the
+Fourier coefficients of s(x), and s(x) p_x is symmetrised.  The second wall
+that periodicity requires sits 240 nm away.  `ldos_wall` returns the
+layer-resolved LDOS(E, x) in states eV⁻¹ Å⁻² with spin, both valleys and a
+Gaussian broadening (5 meV), summed over a k_y mesh of 0.001 Å⁻¹ (the K⁻
+Hamiltonian is the complex conjugate of the K⁺ one and gives the same LDOS).
+
+```python
+import stacking_wall as sw
+
+res = sw.ldos_wall(wall_length=88.0)         # tanh length l in A; 10-90 % width = 2.2 l
+res["energy"], res["x"], res["ldos"][-1]     # eV, A, top-layer LDOS (6, n_E, n_x)[-1]
+```
+
+Checks: without a wall the layer-summed LDOS is x-independent and equals the
+k·p DOS of `calculate_density_of_states` (1 % between −0.25 and 0.25 eV, 2.6 %
+integrated to ±0.38 eV where the k_y window cuts off the trigonal-warping
+legs); for a monolayer it reproduces 2|E| / (π ħ²v²) to 10⁻⁴ with the default
+cell; far from the walls the top-layer LDOS returns to the two uniform stacks.
+
+### Interpolation length from the measurements
+
+The length l is taken from the dI/dV line spectra.  `load_line_spectrum`
+reads an RHK `.sm4` file with `rhkpy` and normalises it as the notebooks of the
+paper do (lock-in signal over the mean of |I| at the two ends of the bias
+ramp); `mixing_fraction` writes every spectrum of the line as
+(1 − s) S_(+⁴−)(V) + s S_(+⁵)(V) with the two end-member spectra averaged far
+from the wall (least squares over −0.3 … 0.3 V), and `fit_wall_profile` fits
+s(x) with the same tanh step as the model.  For the two line spectra across
+single walls of flake MK_ABC_FLG_25 (9 K):
+
+| line spectrum | wall centre x0 | l (tanh) | 10–90 % width | flat band (+⁵) |
+|---|---|---|---|---|
+| `..._2023_08_03_16_33_49_514.sm4` (125 nm, 256 spectra) | 37.6 ± 0.2 nm | 8.8 ± 0.3 nm | 19.4 nm | +22 mV |
+| `..._2023_10_25_17_00_17_940.sm4` (70 nm, 256 spectra) | 39.2 ± 0.1 nm | 5.6 ± 0.1 nm | 12.2 nm | −32 mV |
+
+The flat-band weight within ±25 meV of the peak gives the same lengths to
+within 0.5 nm.  These are apparent widths of the surface LDOS, which include
+the lateral extent of the states themselves; they are the lengths over which
+the Hamiltonian is interpolated here.
+
+```
+python stacking_wall_figure.py --sm4 MK_ABC_FLG_25_9K_2023_08_03_16_33_49_514.sm4 --tag 514 --x-sf 22 --x-rg 55
+python stacking_wall_figure.py --sm4 MK_ABC_FLG_25_9K_2023_10_25_17_00_17_940.sm4 --tag 940 --x-sf 30 --x-rg 46
+```
+
+fits the wall, computes the LDOS with the fitted l (about 10 minutes on four
+cores; cached in `examples/stacking_wall_ldos_TAG.npz`), and writes
+`examples/stacking_wall_TAG.png`: the measured dI/dV(V, x) next to the
+top-layer LDOS(E, x) of the model, both bias derivatives (which bring out the
+quasiparticle-interference fringes), the fitted profile and spectra at three
+positions; `examples/stacking_wall_layers_TAG.png` shows all six layers as in
+Fig. 3 of the paper, and `examples/stacking_wall_TAG.json` the fit and the
+parameters.  The model energy axis is shifted rigidly so that its (+⁵)
+flat-band peak coincides with the measured one (the flake is slightly doped,
+differently in the two measurements); no layer-dependent doping is included
+(`layer_potential` of `ldos_wall` accepts one).  The raw `.sm4` files are not
+part of the repository.
+
 ## Tests
 
 ```
@@ -194,7 +276,10 @@ for the ERS script, the Fermi level of a slab, the Raman shift to energy mapping
 the mirror-pair spectrum (bilayer in closed form, σ_z-weighted sum over all pairs
 of bands for both stackings), the line-width kernel, the tables written to disk
 and the report; for the bulk pair spectrum, the closed forms of the γ0, γ1 limit
-and the comparison with the DOS.
+and the comparison with the DOS.  For the stacking wall they check the k·p
+decomposition, the profile and its Fourier series, the plane-wave Hamiltonian
+(Hermitian, the two uniform limits), the LDOS normalisation and the analysis of
+a synthetic line spectrum.
 
 ## Other scripts
 
@@ -204,4 +289,5 @@ and the comparison with the DOS.
 - `multilayer_graphene_pythtb.py`: an older PythTB-based implementation with
   different parameters; kept for reference only, not maintained.
 
-Requirements: NumPy, Matplotlib (pytest for the tests).
+Requirements: NumPy, SciPy, Matplotlib (pytest for the tests; rhkpy to read
+the STM files).

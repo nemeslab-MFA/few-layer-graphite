@@ -307,18 +307,108 @@ def make_sample(stacking: str, name: str, *, doping=None, fermi_level=None, broa
     return Sample(surface=ml, layers=(Layer(oxide, library.SIO2, name="SiO2"),), gate=Gate())
 
 
-def run_sweep(sample, tip, biases, *, temperature: float, wall_s=None, grid="normal", n_phi=6, wall_kw=None):
-    """Self-consistent bias sweep at V_g = 0; returns (MultilayerSweep, seconds)."""
+class CheckpointedSweep:
+    """Apex and far-field layer potentials of a bias sweep, solved point by point with warm
+    starts and saved after every point, so that an interrupted sweep resumes.  Exposes what
+    the engine's ``MultilayerSweep`` offers to ``spectrum_of`` and ``sweep_arrays``."""
+
+    def __init__(self, sim, name, biases, path=None):
+        self.sim, self.name, self.path = sim, name, path
+        self.bias = np.asarray(biases, dtype=np.float64)
+        self.stacking = sim._sample.multilayers[0].spec.stacking
+        self.points = {}
+        if path and os.path.exists(path):
+            with open(path) as fh:
+                self.points = json.load(fh)
+        self.tb = None
+        self.failures = []
+
+    @staticmethod
+    def key(v):
+        return f"{v:+.4f}"
+
+    def run(self):
+        order = np.argsort(np.abs(self.bias), kind="stable")           # 0 V outwards
+        prev = {}
+        for i in order:
+            vb = float(self.bias[i])
+            k = self.key(vb)
+            if k in self.points:
+                continue
+            init = prev.get(np.sign(vb)) or prev.get(0.0)
+            try:
+                r = self.sim.solve(vb, 0.0, init=init, fields=False)
+            except Exception as err:                                  # noqa: BLE001
+                print(f"    bias {vb:+.3f} V failed: {err}", flush=True)
+                self.failures.append(vb)
+                self.points[k] = None
+                continue
+            p = r.multilayers[self.name]
+            self.points[k] = {"U0": p.U[0].tolist(), "U_far": np.asarray(p.U_far).tolist(),
+                              "mu0": float(p.mu0), "doping": np.asarray(p.doping).tolist(),
+                              "iterations": int(r.diagnostics.get("iterations", -1))}
+            self.tb = p.tb
+            prev[np.sign(vb)] = r
+            if self.path:
+                with open(self.path, "w") as fh:
+                    json.dump(self.points, fh)
+        if self.tb is None:                                              # everything was cached
+            spec = self.sim._sample.multilayers[0].spec
+            self.tb = self.sim._multilayer_tb(spec)
+        return self
+
+    # -- the MultilayerSweep interface used here ----------------------------------------
+    @property
+    def _valid(self):
+        return np.array([self.points.get(self.key(v)) is not None for v in self.bias])
+
+    @property
+    def U0(self):
+        out = np.full((1, self.bias.size, 6), np.nan)
+        for i, v in enumerate(self.bias):
+            pt = self.points.get(self.key(v))
+            if pt:
+                out[0, i] = pt["U0"]
+        return out
+
+    @property
+    def U_far(self):
+        out = np.full((1, self.bias.size, 6), np.nan)
+        for i, v in enumerate(self.bias):
+            pt = self.points.get(self.key(v))
+            if pt:
+                out[0, i] = pt["U_far"]
+        return out
+
+    @property
+    def mu0(self):
+        return next(pt["mu0"] for pt in self.points.values() if pt)
+
+    @property
+    def doping(self):
+        return np.asarray(next(pt["doping"] for pt in self.points.values() if pt))
+
+    def spectrum(self, gate_index=0, bias=None, **kw):
+        from bandbending.results.spectroscopy import interpolate_potentials
+        ok = self._valid
+        xs, Us = self.bias[ok], self.U0[0][ok]
+        V = xs if bias is None else np.asarray(bias, dtype=np.float64)
+        U, dUdV = interpolate_potentials(xs, Us, V)
+        return tunneling_spectrum(self.tb, self.mu0, V, U, dUdV, **kw)
+
+
+def run_sweep(sample, tip, biases, *, temperature: float, wall_s=None, grid="normal", n_phi=6, wall_kw=None,
+              checkpoint=None):
+    """Self-consistent bias sweep at V_g = 0, point by point with a checkpoint file;
+    returns (CheckpointedSweep, seconds, failures)."""
     name = sample.multilayers[0].spec.name              # the expanded sheets are "<name>.L1" ...
     t0 = time.perf_counter()
     if wall_s is None:
         sim = Simulation(sample, tip, temperature=temperature, grid=grid)
     else:
         sim = WallSimulation(sample, tip, temperature, wall_s=wall_s, n_phi=n_phi, grid=grid, wall_kw=wall_kw)
-    sw = sim.sweep(np.asarray(biases, dtype=np.float64), 0.0, fields="none")
-    m = sw.multilayers[name]
-    fails = sw.diagnostics.get("failures", []) if hasattr(sw, "diagnostics") else []
-    return m, time.perf_counter() - t0, fails
+    m = CheckpointedSweep(sim, name, biases, checkpoint).run()
+    return m, time.perf_counter() - t0, m.failures
 
 
 def spectrum_of(m, bias, *, modulation: float, barrier: float, separation: float, broadening: float,
@@ -392,6 +482,7 @@ def parse_args():
     p.add_argument("--wall-hcoarse", type=float, default=0.3, help="coarse eps panel of the wall quadrature (eV)")
     p.add_argument("--stage", choices=["fit", "wall", "all"], default="all")
     p.add_argument("--out", default=None, help="output json (default examples/stacking_wall_tibb_TAG.json)")
+    p.add_argument("--ckpt-dir", default=None, help="directory of the per-point checkpoints (default: next to --out)")
     return p.parse_args()
 
 
@@ -401,6 +492,9 @@ def main():
     args = parse_args()
     out_path = args.out or os.path.join(EXAMPLES, f"stacking_wall_tibb_{args.tag}.json")
     state = json.load(open(out_path)) if os.path.exists(out_path) else {}
+    ckpt_dir = args.ckpt_dir or os.path.dirname(out_path)
+    os.makedirs(ckpt_dir, exist_ok=True)
+    ckpt = lambda label: os.path.join(ckpt_dir, f"stacking_wall_tibb_{args.tag}_{label}.ckpt.json")   # noqa: E731
 
     exp = sw.load_line_spectrum(args.sm4)
     fit_path = os.path.join(EXAMPLES, f"stacking_wall_{args.tag}.json")
@@ -435,7 +529,8 @@ def main():
             if key in scan:
                 continue
             tip = Tip(radius=args.radius, separation=args.separation, contact_potential=cpot)
-            m, dt, fails = run_sweep(rg, tip, biases, temperature=args.temperature, grid=args.grid)
+            m, dt, fails = run_sweep(rg, tip, biases, temperature=args.temperature, grid=args.grid,
+                                     checkpoint=ckpt(f"rg_cpot{cpot:+.3f}"))
             sp = spectrum_of(m, fine, **spec_kw)
             a, res = shape_distance(meas["bias"], meas["rg"], fine, sp.didv)
             scan[key] = {"cpot": cpot, "seconds": dt, "failures": len(fails), "scale": a, "residual": res,
@@ -463,7 +558,8 @@ def main():
             sample = make_sample(stacking, name, doping=doping, broadening=args.broadening)
             m, dt, fails = run_sweep(sample, tip, biases, temperature=args.temperature, wall_s=wall_s,
                                      grid=args.grid if wall_s is None else args.wall_grid, n_phi=args.n_phi,
-                                     wall_kw={"h_fine": args.wall_hfine, "h_coarse": args.wall_hcoarse})
+                                     wall_kw={"h_fine": args.wall_hfine, "h_coarse": args.wall_hcoarse},
+                                     checkpoint=ckpt(rkey))
             sp = spectrum_of(m, fine, **spec_kw)
             a, res = shape_distance(meas["bias"], meas[mkey], fine, sp.didv)
             runs[rkey] = {"stacking": stacking, "s": wall_s, "seconds": dt, "failures": len(fails), "scale": a,

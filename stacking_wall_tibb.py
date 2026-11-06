@@ -10,9 +10,9 @@ the grounded Si:
 
   1. (+5)  ABCABC, far from the wall;
   2. the wall, where the flat band bends: the top-layer dimer coupling shared
-     between B5-A6 (weight 1 - s, the (+5) bond) and A5-B6 (weight s, the
-     (+4-) bond), the interpolated Hamiltonian of ``stacking_wall.py`` in the
-     engine's gamma0/gamma1 model;
+     between A1-B2 (weight 1 - s, the (+5) bond) and B1-A2 (weight s, the
+     (+4-) bond; the engine counts layers from the tip), the interpolated
+     Hamiltonian of ``stacking_wall.py`` in the engine's gamma0/gamma1 model;
   3. (+4-) ABCABA, far from the wall.
 
 The engine reduces every zone integral to one dimension because the gamma0/
@@ -23,7 +23,7 @@ phi = arg f and averages over phi.  Near K, where all states within the
 spectral window live, phi is uniformly distributed on the contours of
 |f|, so a midpoint rule on [0, pi) (H depends on exp(2 i phi)) is used at
 every eps node of the engine's quadrature; the end members s = 0 and s = 1
-are trees and reproduce ``MultilayerTB`` exactly.
+are trees and reproduce ``MultilayerTB`` exactly.  The loop is A1-B1-A2-B2.
 
 Procedure (``main``):
   * the doping is set from the measured flat-band energy of the (+5) side
@@ -61,7 +61,10 @@ from bandbending.results.spectroscopy import tunneling_spectrum
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXAMPLES = os.path.join(HERE, "examples")
 
-SEQ_RG, SEQ_SF = "ABCABC", "ABCABA"
+# The engine indexes layers top down (layer 1 faces the tip), so the sequences are read
+# from the surface: (+5) = CBACBA (the same crystal as ABCABC) and (+4-) = ABACBA; they
+# differ in the top dimer only, A1-B2 in (+5) against B1-A2 in (+4-).
+SEQ_RG, SEQ_SF = "CBACBA", "ABACBA"
 WALL_NAME = "WALL"
 
 
@@ -70,11 +73,12 @@ WALL_NAME = "WALL"
 # =============================================================================
 
 class WallTB(MultilayerTB):
-    """Six-layer stack whose top dimer is shared between the (+5) bond B5-A6, weight
-    1 - s, and the (+4-) bond A5-B6, weight s (gamma1 times the weight).
+    """Six-layer stack whose top dimer (layers 1 and 2, the tip side) is shared between
+    the (+5) bond A1-B2, weight 1 - s, and the (+4-) bond B1-A2, weight s (gamma1 times
+    the weight).
 
     H(eps, phi) is complex Hermitian: eps exp(i phi) on every intralayer bond (phi the
-    phase of f(k)), the dimers real; the loop A5-B5-A6-B6 carries the flux 2 phi.  Zone
+    phase of f(k)), the dimers real; the loop A1-B1-A2-B2 carries the flux 2 phi.  Zone
     averages use the engine's eps quadrature times ``n_phi`` midpoint nodes of phi on
     [0, pi).  Charges, their Jacobian (Lindhard sum) and the projected DOS are evaluated
     with numpy's batched complex eigensolver, vectorised over radial rows.
@@ -96,9 +100,11 @@ class WallTB(MultilayerTB):
         self.phi2 = np.tile(phi, g.nodes.size)
         self.weights2 = np.repeat(g.weights, self.n_phi) / self.n_phi
         self.cells2 = np.repeat(g.cells, self.n_phi, axis=0)
-        # dimers of ABCABC without the top one, plus the two interpolated top bonds
-        self._dimers = tuple(d for d in self.stacking.dimers if 10 not in d and 11 not in d)
-        self._top = ((9, 10, 1.0 - self.s), (8, 11, self.s))   # (B5, A6), (A5, B6)
+        # dimers of CBACBA without the top one, plus the two interpolated top bonds
+        self._dimers = tuple(d for d in self.stacking.dimers if 0 not in d and 1 not in d)
+        if len(self._dimers) != 4 or (0, 3) not in self.stacking.dimers:
+            raise ValueError("WallTB expects the stacking CBACBA (top dimer A1-B2)")
+        self._top = ((0, 3, 1.0 - self.s), (1, 2, self.s))     # (A1, B2), (B1, A2)
 
     @classmethod
     def from_spec(cls, spec: dict) -> "WallTB":

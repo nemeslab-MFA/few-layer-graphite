@@ -70,6 +70,62 @@ def load(tag):
         return json.load(fh)
 
 
+def tibb_section(tags, img_prefix=""):
+    """Section on the tip-induced band-bending calculation (stacking_wall_tibb.py), or ''."""
+    states = {}
+    for t in tags:
+        path = os.path.join(EXAMPLES, f"stacking_wall_tibb_{t}.json")
+        if os.path.exists(path):
+            with open(path) as fh:
+                states[t] = json.load(fh)
+    if not states:
+        return ""
+    rows = []
+    for t, st in states.items():
+        s = st["settings"]
+        scan = st.get("scan", {})
+        best = scan.get(f"{st.get('best_cpot', 0.0):+.3f}") if scan else None
+        runs = st.get("runs", {})
+        wall = next((runs[k] for k in runs if k.startswith("wall")), None)
+        sf = runs.get("sf")
+        cell = lambda run, key, fmt: (fmt % run[key]) if run else "–"   # noqa: E731
+        rows.append(
+            f"<tr><td>{html.escape(t)}</td><td>{1e3 * s['E_fb_measured']:+.0f} mV</td>"
+            f"<td>{1e3 * s['fermi_level']:+.0f} meV</td>"
+            f"<td>{st.get('best_cpot', float('nan')):+.2f} eV</td>"
+            f"<td>{cell(best, 'residual', '%.3f')} / {cell(wall, 'residual', '%.3f')} / {cell(sf, 'residual', '%.3f')}</td>"
+            f"<td>{cell(best, 'peak_sim', '%+.3f')} / {cell(wall, 'peak_sim', '%+.3f')} V</td></tr>")
+    s0 = next(iter(states.values()))["settings"]
+    return f"""
+<h2>Self-consistent tip-induced band bending (bandbending engine)</h2>
+<p>Three laterally uniform six-layer stacks under the same tip, each solved self-consistently
+(Hartree + γ0/γ1 tight binding, <code>GrapheneMultilayer</code> of the
+<a href="https://github.com/nemeslab-MFA/bandbending">bandbending</a> engine) on {s0['grid']} grids:
+the (+⁵) stack far from the wall, the wall itself with the top dimer shared between the (+⁵) bond
+(weight 1 − s) and the (+⁴−) bond (weight s, s = {s0['s']:.2f} at the position of the bend), and the
+(+⁴−) stack. The wall Hamiltonian closes a bond loop whose flux is the phase of the structure factor, so it
+is evaluated with a complex Hamiltonian averaged over that phase (<code>WallTB</code> in
+<code>stacking_wall_tibb.py</code>; it reproduces the engine's end members exactly and a brute-force zone
+sum to 1 %). Tip radius {s0['radius']:.0f} nm, separation {s0['separation']:.1f} nm, barrier
+{s0['barrier']:.1f} eV, {s0['temperature']:.0f} K, Gaussian width {1e3 * s0['broadening']:.0f} meV of the
+tight-binding occupation and LDOS (the γ0/γ1 flat band is 6 meV wide; the measured one 26 mV), lock-in
+{1e3 * s0['modulation']:.2f} mV; 90 nm SiO₂ over the grounded Si. The doping is set from the measured
+flat-band energy of the (+⁵) side (isolated stack neutral with E<sub>F</sub> that far from its flat band);
+the fixed charge per layer this implies is used unchanged for the wall and the (+⁴−) stack, and the tip
+contact potential is chosen by the fit of the simulated (+⁵) spectrum to the measured one far from the
+wall (one scale factor free). Spectra are the engine's <code>tunneling_spectrum</code>: the frozen-potential
+term plus the band-bending term.</p>
+<div class="tablewrap"><table>
+<tr><th>line spectrum</th><th>measured flat band</th><th>E<sub>F</sub> − E<sub>CNP</sub></th><th>contact potential</th><th>residual (+⁵) / wall / (+⁴−)</th><th>simulated peak (+⁵) / wall</th></tr>
+{''.join(rows)}
+</table></div>
+<figure><img src="{img_prefix}stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
+<figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
+term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
+TIBB_TEXT
+"""
+
+
 def page(tags, img_prefix=""):
     infos = [load(t) for t in tags]
     rows = []
@@ -183,6 +239,7 @@ C<sub>q</sub> ≈ 9 mF m⁻², i.e. D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm�
 10 to 20 meV from its Dirac point. The sign reversal between −30 and +70 mV in spectrum 940 also puts the
 flat-band voltage of the junction, set by the work-function difference of tip and sample, within a few tens
 of mV of zero.</p>
+{tibb_section(tags, img_prefix)}
 <footer>Kandrai et al., arXiv:2610.20905 (2026) · few-layer-graphite, branch claude/eloquent-franklin-q9q4cb ·
 line spectra 514 and 940 are not part of the repository.</footer>
 </main>

@@ -264,9 +264,10 @@ class WallTB(MultilayerTB):
 class WallSimulation(Simulation):
     """``Simulation`` whose multilayer named ``WALL_NAME`` is evaluated with ``WallTB``."""
 
-    def __init__(self, sample, tip, temperature, *, wall_s: float, n_phi: int = 6, **kw):
+    def __init__(self, sample, tip, temperature, *, wall_s: float, n_phi: int = 6, wall_kw: dict | None = None, **kw):
         self._wall_s = float(wall_s)
         self._n_phi = int(n_phi)
+        self._wall_kw = dict(wall_kw or {})          # e.g. h_fine, h_coarse of the eps quadrature
         super().__init__(sample, tip, temperature, **kw)
 
     def _multilayer_tb(self, spec, settings=None, e_window=None):
@@ -276,12 +277,13 @@ class WallSimulation(Simulation):
         gamma = settings.effective_broadening(spec.broadening)
         kB = settings.constants_set.kT(1.0)
         window = float(spec.e_window if e_window is None else max(e_window, spec.e_window))
-        key = (WALL_NAME, self._wall_s, self._n_phi, spec.params, self._T, gamma, kB, window)
+        key = (WALL_NAME, self._wall_s, self._n_phi, tuple(sorted(self._wall_kw.items())), spec.params,
+               self._T, gamma, kB, window)
         store = self._store
         tb = store.get(store.multilayer, key)
         if tb is None:
             tb = WallTB(spec.params, s=self._wall_s, n_phi=self._n_phi, temperature=self._T,
-                        broadening=gamma, e_window=window, kB=kB)
+                        broadening=gamma, e_window=window, kB=kB, **self._wall_kw)
             store.put(store.multilayer, key, tb, 16)
             store.stats["multilayer_builds"] += 1
         return tb
@@ -299,15 +301,14 @@ def make_sample(stacking: str, name: str, *, doping=None, fermi_level=None, broa
     return Sample(surface=ml, layers=(Layer(oxide, library.SIO2, name="SiO2"),), gate=Gate())
 
 
-def run_sweep(sample, tip, biases, *, temperature: float, wall_s=None, grid="normal", n_phi=6):
+def run_sweep(sample, tip, biases, *, temperature: float, wall_s=None, grid="normal", n_phi=6, wall_kw=None):
     """Self-consistent bias sweep at V_g = 0; returns (MultilayerSweep, seconds)."""
-    surface = sample.surface
-    name = (surface[0] if isinstance(surface, (tuple, list)) else surface).name
+    name = sample.multilayers[0].spec.name              # the expanded sheets are "<name>.L1" ...
     t0 = time.perf_counter()
     if wall_s is None:
         sim = Simulation(sample, tip, temperature=temperature, grid=grid)
     else:
-        sim = WallSimulation(sample, tip, temperature, wall_s=wall_s, n_phi=n_phi, grid=grid)
+        sim = WallSimulation(sample, tip, temperature, wall_s=wall_s, n_phi=n_phi, grid=grid, wall_kw=wall_kw)
     sw = sim.sweep(np.asarray(biases, dtype=np.float64), 0.0, fields="none")
     m = sw.multilayers[name]
     fails = sw.diagnostics.get("failures", []) if hasattr(sw, "diagnostics") else []
@@ -378,8 +379,11 @@ def parse_args():
     p.add_argument("--modulation", type=float, default=3.75e-3, help="lock-in modulation (V rms)")
     p.add_argument("--bias-max", type=float, default=0.45)
     p.add_argument("--bias-step", type=float, default=0.025)
-    p.add_argument("--grid", default="normal")
+    p.add_argument("--grid", default="normal", help="radial grid preset of the pure stacks")
+    p.add_argument("--wall-grid", default="draft", help="radial grid preset of the wall (same results, half the cost)")
     p.add_argument("--n-phi", type=int, default=6)
+    p.add_argument("--wall-hfine", type=float, default=0.012, help="fine eps panel of the wall quadrature (eV)")
+    p.add_argument("--wall-hcoarse", type=float, default=0.3, help="coarse eps panel of the wall quadrature (eV)")
     p.add_argument("--stage", choices=["fit", "wall", "all"], default="all")
     p.add_argument("--out", default=None, help="output json (default examples/stacking_wall_tibb_TAG.json)")
     return p.parse_args()
@@ -410,8 +414,9 @@ def main():
                    broadening=args.broadening, temperature=args.temperature)
     common = {"radius": args.radius, "separation": args.separation, "barrier": args.barrier,
               "temperature": args.temperature, "broadening": args.broadening, "modulation": args.modulation,
-              "bias_step": args.bias_step, "grid": args.grid, "fermi_level": -E_fb, "E_fb_measured": E_fb,
-              "x_wall": args.x_wall, "s": args.s, "n_phi": args.n_phi}
+              "bias_step": args.bias_step, "grid": args.grid, "wall_grid": args.wall_grid,
+              "wall_hfine": args.wall_hfine, "wall_hcoarse": args.wall_hcoarse,
+              "fermi_level": -E_fb, "E_fb_measured": E_fb, "x_wall": args.x_wall, "s": args.s, "n_phi": args.n_phi}
     state["settings"] = common
     state["measured"] = {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in meas.items()}
 
@@ -451,7 +456,8 @@ def main():
                 continue
             sample = make_sample(stacking, name, doping=doping, broadening=args.broadening)
             m, dt, fails = run_sweep(sample, tip, biases, temperature=args.temperature, wall_s=wall_s,
-                                     grid=args.grid, n_phi=args.n_phi)
+                                     grid=args.grid if wall_s is None else args.wall_grid, n_phi=args.n_phi,
+                                     wall_kw={"h_fine": args.wall_hfine, "h_coarse": args.wall_hcoarse})
             sp = spectrum_of(m, fine, **spec_kw)
             a, res = shape_distance(meas["bias"], meas[mkey], fine, sp.didv)
             runs[rkey] = {"stacking": stacking, "s": wall_s, "seconds": dt, "failures": len(fails), "scale": a,

@@ -252,7 +252,9 @@ top-layer LDOS(E, x) of the model, both bias derivatives (which bring out the
 quasiparticle-interference fringes), the fitted profile and spectra at three
 positions; `examples/stacking_wall_layers_TAG.png` shows all six layers as in
 Fig. 3 of the paper, and `examples/stacking_wall_TAG.json` the fit and the
-parameters.  The model energy axis is shifted rigidly so that its (+⁵)
+parameters; `python stacking_wall_report.py` collects the numbers and figures
+into the short page `examples/stacking_wall_report.html`.  The model energy
+axis is shifted rigidly so that its (+⁵)
 flat-band peak coincides with the measured one (the flake is slightly doped,
 differently in the two measurements); no layer-dependent doping is included
 (`layer_potential` of `ldos_wall` accepts one).  The raw `.sm4` files are not

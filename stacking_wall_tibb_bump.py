@@ -150,7 +150,7 @@ def plot():
                title=f"{t}: hybrid without (blue) and with (orange) the tip-induced bump, V = {s['bias']:+.3f} V")
         ax = axs[row, 1]
         h_max = max(r["height"] for r in runs)
-        alive = [r for r in runs if r["height"] > 0.15 * h_max]               # the peak is still there
+        alive = [r for r in runs if r["height"] > 0.15 * h_max and abs(r["peak"] - E_fb) < 0.06]   # the peak is still there
         xs = [x0 + r["x"] for r in alive]
         ax.plot(xs, [1e3 * (r["peak"] + shift) for r in alive], "o-", color="#d95926", label="hybrid + bump")
         refs = [st["runs"].get(f"{r['x']:+.1f}_none") for r in alive]

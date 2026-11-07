@@ -280,7 +280,7 @@ def bump_text(states, img_prefix=""):
     for t, v in nums.items():
         h_max = max(r["height"] for r in v["rows"])
         for r in v["rows"]:
-            if r["height"] < 0.15 * h_max:
+            if r["height"] < 0.15 * h_max or abs(r["peak"] - v["settings"]["E_fb"]) > 0.06:
                 table.append(f"<tr><td>{t}</td><td>{r['x']:+.0f} nm</td><td>{r['s']:.2f}</td><td>{1e3 * r['bump']:+.0f} meV</td>"
                              f"<td colspan=\"3\">flat-band peak faded (height below 15 % of the far value)</td></tr>")
                 continue
@@ -292,7 +292,8 @@ def bump_text(states, img_prefix=""):
     s0 = next(iter(nums.values()))["settings"]
     biases = ", ".join(f"{1e3 * v['settings']['bias']:+.0f} mV ({t})" for t, v in nums.items())
     extras = {t: max((abs(r["dcentroid"]) for r in v["rows"]
-                      if r.get("dcentroid") is not None and r["height"] >= 0.15 * max(q["height"] for q in v["rows"])), default=0.0)
+                      if r.get("dcentroid") is not None and r["height"] >= 0.15 * max(q["height"] for q in v["rows"])
+                      and abs(r["peak"] - v["settings"]["E_fb"]) <= 0.06), default=0.0)
               for t, v in nums.items()}
     worst = ", ".join(f"{1e3 * e:.1f} mV ({t})" for t, e in extras.items())
     return f"""<h3>The tip-induced bump</h3>

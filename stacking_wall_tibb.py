@@ -161,7 +161,8 @@ class WallTB(MultilayerTB):
         P_nodes = self.nodes2.size
         per = max(1, batch // max(R, 1))                       # nodes per batch
         starts = list(range(0, P_nodes, per))
-        threads = (os.cpu_count() or 1) if threads is None else int(threads)
+        if threads is None:                                    # WALLTB_THREADS: threads per process
+            threads = int(os.environ.get("WALLTB_THREADS", os.cpu_count() or 1))
         threads = max(1, min(threads, len(starts)))
 
         def work(my_starts):

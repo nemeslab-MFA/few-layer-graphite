@@ -161,6 +161,31 @@ factor free.</p>
 <figure><img src="stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
 <figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
 term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
+<p><b>Tip work function.</b> No absolute work function enters the electrostatics. The engine takes the
+contact potential CPot = W<sub>tip</sub> − W<sub>ref</sub>, with W<sub>ref</sub> the depth of the stack's
+charge-neutrality point below vacuum, and places the tip at U<sub>tip</sub> = V + CPot; a positive CPot acts like a
+positive bias and bends the bands up at V = 0. CPot was the fit parameter of the (+⁵) spectra, scanned in 0.1 eV
+steps, and came out at +0.00 eV for 514 and +0.00 eV for 940; the simulated flat-band peak
+moves by 16 mV per 0.1 eV (514), 20 mV per 0.1 eV (940), so the fit holds it to about ±0.05 eV. The reference is the neutrality point, not the Fermi
+level: the sample's own work function differs from W<sub>ref</sub> by the doping offset, -23 meV
+(514) and +32 meV (940), so tip and sample work functions are equal within a few tens of meV.
+The 4.6 eV barrier of the simulated spectra enters only the WKB transmission factor, not the band bending.</p>
+<p>The data constrain the same quantity without any solver. In the tip-gating picture a feature measured at bias
+V shifts in proportion to V + CPot, so the flat band seen at positive bias bends up only if
+CPot &gt; −V and the one seen at negative bias bends down only if CPot &lt; −V: with the far-field flat bands at
++23 and -32 mV this is -23 &lt; CPot &lt;
++32 meV, with the peaks at the wall (+56 and -85 mV)
+-56 &lt; CPot &lt; +85 meV. A tip whose work function exceeded the
+sample's by more than about 0.1 eV would make the downward bend impossible in that picture, one below it by more
+than about 0.05 eV the upward bend; this holds separately for the two tips if they differed. In the self-consistent
+calculation, however, most of the simulated bend comes from the charge balance of the wall stack, whose sign follows
+the filling of the flat band and not the tip: there a large contact potential would move both flat bands the same
+way (and the far-field peaks with them) instead of forbidding one bend. Measuring the same wall with tips of
+different work function separates the two: the tip-gating bend changes sign when the flat-band voltage crosses the
+flat-band bias, the charge-balance bend does not. For comparison, the engine's authors found an effective contact
+potential of about +0.1 eV for Au and PtIr tips on rhombohedral graphite, and vacuum work-function differences
+(Pt: +1.05 eV) overestimate the tip field several times.</p>
+
 <p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
 simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
 +20 mV in spectrum 514 (measured +34 mV) and down by -22 mV in spectrum 940

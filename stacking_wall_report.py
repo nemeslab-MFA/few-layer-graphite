@@ -316,6 +316,52 @@ each tip position, and the resulting flat-band peak against the tip position.</f
 """
 
 
+def workfunction_text(states):
+    """Paragraph on the tip work function: what entered the calculation and what the data say."""
+    rows = {}
+    for t, st in states.items():
+        s = st["settings"]
+        scan = {d["cpot"]: d for d in st.get("scan", {}).values()}
+        slope = None
+        if 0.1 in scan and -0.1 in scan:
+            slope = (scan[0.1]["peak_sim"] - scan[-0.1]["peak_sim"]) / 0.2          # V per V
+        meas = st["measured"]
+        wall_peak = _peak(np.asarray(meas["bias"]), np.asarray(meas["wall"]), s["E_fb_measured"], 0.09)
+        rows[t] = dict(cpot=st.get("best_cpot", 0.0), E_fb=s["E_fb_measured"], wall=wall_peak,
+                       mu0=s["fermi_level"], slope=slope)
+    if len(rows) < 2:
+        return ""
+    t1, t2 = list(rows)[:2]
+    a, b = rows[t1], rows[t2]
+    up, down = (a, b) if a["E_fb"] > 0 else (b, a)          # the line seen at positive bias bends up
+    slope_txt = ", ".join(f"{1e3 * r['slope'] * 0.1:.0f} mV per 0.1 eV ({t})" for t, r in rows.items() if r["slope"])
+    return f"""<p><b>Tip work function.</b> No absolute work function enters the electrostatics. The engine takes the
+contact potential CPot = W<sub>tip</sub> − W<sub>ref</sub>, with W<sub>ref</sub> the depth of the stack's
+charge-neutrality point below vacuum, and places the tip at U<sub>tip</sub> = V + CPot; a positive CPot acts like a
+positive bias and bends the bands up at V = 0. CPot was the fit parameter of the (+⁵) spectra, scanned in 0.1 eV
+steps, and came out at {a['cpot']:+.2f} eV for {t1} and {b['cpot']:+.2f} eV for {t2}; the simulated flat-band peak
+moves by {slope_txt}, so the fit holds it to about ±0.05 eV. The reference is the neutrality point, not the Fermi
+level: the sample's own work function differs from W<sub>ref</sub> by the doping offset, {1e3 * a['mu0']:+.0f} meV
+({t1}) and {1e3 * b['mu0']:+.0f} meV ({t2}), so tip and sample work functions are equal within a few tens of meV.
+The 4.6 eV barrier of the simulated spectra enters only the WKB transmission factor, not the band bending.</p>
+<p>The data constrain the same quantity without any solver. In the tip-gating picture a feature measured at bias
+V shifts in proportion to V + CPot, so the flat band seen at positive bias bends up only if
+CPot &gt; −V and the one seen at negative bias bends down only if CPot &lt; −V: with the far-field flat bands at
+{1e3 * up['E_fb']:+.0f} and {1e3 * down['E_fb']:+.0f} mV this is {-1e3 * up['E_fb']:+.0f} &lt; CPot &lt;
+{-1e3 * down['E_fb']:+.0f} meV, with the peaks at the wall ({1e3 * up['wall']:+.0f} and {1e3 * down['wall']:+.0f} mV)
+{-1e3 * up['wall']:+.0f} &lt; CPot &lt; {-1e3 * down['wall']:+.0f} meV. A tip whose work function exceeded the
+sample's by more than about 0.1 eV would make the downward bend impossible in that picture, one below it by more
+than about 0.05 eV the upward bend; this holds separately for the two tips if they differed. In the self-consistent
+calculation, however, most of the simulated bend comes from the charge balance of the wall stack, whose sign follows
+the filling of the flat band and not the tip: there a large contact potential would move both flat bands the same
+way (and the far-field peaks with them) instead of forbidding one bend. Measuring the same wall with tips of
+different work function separates the two: the tip-gating bend changes sign when the flat-band voltage crosses the
+flat-band bias, the charge-balance bend does not. For comparison, the engine's authors found an effective contact
+potential of about +0.1 eV for Au and PtIr tips on rhombohedral graphite, and vacuum work-function differences
+(Pt: +1.05 eV) overestimate the tip field several times.</p>
+"""
+
+
 def tibb_text(states, img_prefix=""):
     """Interpretation of the band-bending results, with the numbers of the result files."""
     n = {t: tibb_numbers(st) for t, st in states.items()}
@@ -329,7 +375,8 @@ def tibb_text(states, img_prefix=""):
     rows = {t: shifts(t) for t in n}
     t1, t2 = list(n)[:2]
     a, b = rows[t1], rows[t2]
-    return f"""<p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
+    return f"""{workfunction_text(states)}
+<p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
 simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
 {a[1]:+.0f} mV in spectrum {t1} (measured {a[0]:+.0f} mV) and down by {b[1]:+.0f} mV in spectrum {t2}
 (measured {b[0]:+.0f} mV), so the sign follows the filling as observed, with {100 * a[1] / a[0]:.0f} % and

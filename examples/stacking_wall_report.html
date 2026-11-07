@@ -230,6 +230,24 @@ energy.</figcaption></figure>
 <figcaption>Apparent flat-band energy along the line: measured, local approximation and hybrid, followed until
 the peak has faded to 15 % of its far value.</figcaption></figure>
 
+<h3>The tip-induced bump</h3>
+<p>The Poisson solver also gives the potential under the apex, U0,l(V) − U_far,l, which moves with the tip. It is
+added to the hybrid as a Gaussian bump of width w = √(2Rd) = 5.3 nm centred on the tip, with the
+amplitude of the stack at s(x_tip) at the bias where the flat-band peak is measured at the wall (+56 mV (514), -85 mV (940)), and the
+wall model is solved once per tip position (cell 300 nm, k_y step 0.002 Å⁻¹, 6 meV
+broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
+without and with the bump (the energy grid of the peak is 2.5 meV; the centroid of the peak resolves below that);
+the largest change the bump makes to the peak centroid is 0.5 mV (514), 0.9 mV (940), against a measured bend of 35 to 55 mV. Within
+the self-consistent model the tip's own potential does not move the flat band at the wall; the bend it leaves
+unexplained is not a tip effect that the local approximation missed.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change of the maximum</th><th>change of the centroid</th></tr>
+<tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+5 meV</td><td>-70 / -70 mV</td><td>+0.0 mV</td><td>+0.0 mV</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+6 meV</td><td>+33 / +33 mV</td><td>+0.0 mV</td><td>+0.4 mV</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7 meV</td><td>+33 / +33 mV</td><td>+0.0 mV</td><td>+0.5 mV</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9 meV</td><td>+33 / +33 mV</td><td>+0.0 mV</td><td>+0.5 mV</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+9 meV</td><td>+30 / +30 mV</td><td>+0.0 mV</td><td>+0.4 mV</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-9 meV</td><td>-125 / -125 mV</td><td>+0.0 mV</td><td>-0.1 mV</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-9 meV</td><td>-35 / -35 mV</td><td>+0.0 mV</td><td>-0.4 mV</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-12 meV</td><td>-32 / -35 mV</td><td>-2.5 mV</td><td>-0.9 mV</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-14 meV</td><td>-32 / -32 mV</td><td>+0.0 mV</td><td>-0.7 mV</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-15 meV</td><td>-30 / -30 mV</td><td>+0.0 mV</td><td>-0.3 mV</td></tr>
+</table></div>
+<figure><img src="stacking_wall_bump.png" alt="top-layer LDOS under the tip with and without the bump">
+<figcaption>Top-layer LDOS under the tip for the hybrid without (blue) and with (orange) the tip-induced bump at
+each tip position, and the resulting flat-band peak against the tip position.</figcaption></figure>
+
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

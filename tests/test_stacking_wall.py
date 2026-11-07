@@ -210,3 +210,18 @@ def test_mixing_fraction_and_fit_recover_a_synthetic_wall():
     assert abs(fit["x0"] - 42.0) < 0.3 and abs(fit["ell"] - 6.0) < 0.3
     assert np.isclose(fit["width_10_90"], 2.0 * np.arctanh(0.8) * fit["ell"])
     assert np.isclose(sw.flat_band_energy(bias, S_b), 0.02, atol=0.006)
+
+
+def test_uniform_layer_potential_profile_equals_layer_potential():
+    E = np.linspace(-0.15, 0.15, 13)
+    common = dict(length=600.0, p_cut=0.08, ky_max=0.06, dky=0.003, energy=E, sigma=0.01,
+                  x_out=np.array([-100.0, 0.0, 120.0]), n_proc=1, wall_length=20.0)
+    V = np.array([0.03, 0.01, 0.0, -0.01, -0.02, -0.04])
+    a = sw.ldos_wall(layer_potential=V, **common)
+    b = sw.ldos_wall(layer_potential_profile=lambda x: np.repeat(V[:, None], np.size(x), axis=1), **common)
+    assert b["layer_potential_profile"] is True
+    assert np.allclose(a["ldos"], b["ldos"], rtol=1e-8, atol=1e-12)
+    # a profile that is not uniform changes the result and keeps the Hamiltonian Hermitian
+    c = sw.ldos_wall(layer_potential_profile=lambda x: V[:, None] * np.cos(2 * np.pi * np.asarray(x) / 600.0)[None, :],
+                     **common)
+    assert not np.allclose(a["ldos"], c["ldos"])

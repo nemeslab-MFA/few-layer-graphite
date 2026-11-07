@@ -149,36 +149,45 @@ def _mixed_blocks(params=None, xi=+1, layer_potential=None, seq_rg=SEQ_RG, seq_s
     return (C_rg, X_rg, Y_rg), (C_sf - C_rg, X_sf - X_rg, Y_sf - Y_rg)
 
 
-def wall_hamiltonian(ky, s_hat, q, blocks_rg, blocks_d):
+def wall_hamiltonian(ky, s_hat, q, blocks_rg, blocks_d, v_hat=None):
     """
     Plane-wave Hamiltonian at conserved k_y (1/A): basis index i = n_pw * 2N +
     orbital, plane waves q[n] = 2 pi n / L (1/A), Fourier coefficients
-    s_hat[k + n_max] of the profile.
+    s_hat[k + n_max] of the profile.  ``v_hat`` (N_layers, 2 n_max + 1), the
+    Fourier coefficients of position-dependent layer potentials V_l(x) (eV),
+    adds the on-site term of every layer.
     """
     C, X, Y = blocks_rg
     DC, DX, DY = blocks_d
     n_pw = q.size
     n_max = (s_hat.size - 1) // 2
     idx = np.arange(n_pw)
-    S = s_hat[(idx[:, None] - idx[None, :]) + n_max]               # s_{n-m}
+    diff = (idx[:, None] - idx[None, :]) + n_max
+    S = s_hat[diff]                                                  # s_{n-m}
     SQ = S * (0.5 * (q[:, None] + q[None, :]))                       # symmetrised s p_x
     H = (np.kron(np.eye(n_pw), C + ky * Y)
          + np.kron(np.diag(q), X)
          + np.kron(S, DC + ky * DY)
          + np.kron(SQ, DX))
+    if v_hat is not None:
+        n_orb = C.shape[0]
+        for l in range(v_hat.shape[0]):
+            P = np.zeros((n_orb, n_orb))
+            P[2 * l, 2 * l] = P[2 * l + 1, 2 * l + 1] = 1.0
+            H += np.kron(v_hat[l][diff], P)
     return H
 
 
 def _ldos_worker(args):
     (ky_list, s_hat, q, blocks_rg, blocks_d, x_out, energy, sigma, length,
-     n_layers, dky) = args
+     n_layers, dky, v_hat) = args
     n_E, n_x = energy.size, x_out.size
     out = np.zeros((n_layers, n_E, n_x))
     phase = np.exp(1j * np.outer(q, x_out)) / np.sqrt(length)       # (n_pw, n_x)
     e_lo, e_hi = energy.min() - 6.0 * sigma, energy.max() + 6.0 * sigma
     norm = 1.0 / (np.sqrt(2.0 * np.pi) * sigma)
     for ky in ky_list:
-        H = wall_hamiltonian(ky, s_hat, q, blocks_rg, blocks_d)
+        H = wall_hamiltonian(ky, s_hat, q, blocks_rg, blocks_d, v_hat)
         w, v = eigh(H, subset_by_value=(e_lo, e_hi), driver="evr")
         if w.size == 0:
             continue
@@ -193,7 +202,8 @@ def _ldos_worker(args):
 def ldos_wall(wall_length=40.0, length=4800.0, strip=None, p_cut=0.13,
               ky_max=0.11, dky=0.001, energy=None, sigma=0.005,
               x_out=None, params=None, layer_potential=None, n_proc=None,
-              xi=+1, profile=None, seq_rg=SEQ_RG, seq_sf=SEQ_SF):
+              xi=+1, profile=None, seq_rg=SEQ_RG, seq_sf=SEQ_SF,
+              layer_potential_profile=None):
     """
     Layer-resolved LDOS(E, x) across the wall.
 
@@ -210,6 +220,9 @@ def ldos_wall(wall_length=40.0, length=4800.0, strip=None, p_cut=0.13,
     n_proc      : worker processes (default: all CPUs), one BLAS thread each
     profile     : callable s(x) in place of ``wall_profile``
     seq_rg, seq_sf : the two stackings (same number of layers)
+    layer_potential_profile : callable x (A, periodic cell) -> (N_layers, len(x))
+        on-site potential energies of the layers (eV), e.g. the far-field
+        potentials of a Poisson solver along the wall; must be periodic on the cell
 
     Returns a dict with 'energy' (eV), 'x' (A), 's' (profile at x), 'ldos'
     of shape (N_layers, n_E, n_x) in states / (eV A^2), spin and valley
@@ -224,6 +237,10 @@ def ldos_wall(wall_length=40.0, length=4800.0, strip=None, p_cut=0.13,
     s_hat = fourier_coefficients(profile, length, 2 * n_max)
     blocks_rg, blocks_d = _mixed_blocks(params, xi, layer_potential, seq_rg, seq_sf)
     n_layers = blocks_rg[0].shape[0] // 2
+    v_hat = None
+    if layer_potential_profile is not None:
+        v_hat = np.array([fourier_coefficients(lambda x, l=l: np.asarray(layer_potential_profile(x))[l],
+                                               length, 2 * n_max) for l in range(n_layers)])
 
     n_ky = int(round(2.0 * ky_max / dky)) + 1
     ky = np.linspace(-ky_max, ky_max, n_ky)
@@ -233,7 +250,7 @@ def ldos_wall(wall_length=40.0, length=4800.0, strip=None, p_cut=0.13,
     n_proc = os.cpu_count() if n_proc is None else int(n_proc)
     n_proc = max(1, min(n_proc, n_ky))
     chunks = [ky[i::n_proc] for i in range(n_proc)]
-    args = [(c, s_hat, q, blocks_rg, blocks_d, x_out, energy, sigma, length, n_layers, weight)
+    args = [(c, s_hat, q, blocks_rg, blocks_d, x_out, energy, sigma, length, n_layers, weight, v_hat)
             for c in chunks]
     if n_proc == 1:
         parts = [_ldos_worker(args[0])]
@@ -246,6 +263,7 @@ def ldos_wall(wall_length=40.0, length=4800.0, strip=None, p_cut=0.13,
         "p_cut": p_cut, "ky_max": ky_max, "dky": dky_eff, "sigma": sigma,
         "n_pw": q.size, "layer_potential": layer_potential,
         "seq_rg": seq_rg, "seq_sf": seq_sf,
+        "layer_potential_profile": layer_potential_profile is not None,
         "params": mlg.get_parameters() if params is None else {**mlg.get_parameters(), **params},
     }
 

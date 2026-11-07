@@ -200,6 +200,36 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 <figure><img src="stacking_wall_tibb_map_940.png" alt="simulated line spectrum across the wall, 940">
 <figcaption>Line spectrum 940, the same.</figcaption></figure>
 </div>
+<h2>Hybrid: the wall model with the Poisson potentials</h2>
+<p>The two calculations are complementary: the k·p wall model has the wall and its fringes but no electrostatics,
+the Poisson solver has the electrostatics but, being axisymmetric, no wall. The notebook
+<code>examples/stacking_wall_hybrid.ipynb</code> joins them: it reads the Poisson outputs, refers the far-field
+layer potentials of every stack to the common Fermi level, V<sub>l</sub> = U<sub>far,l</sub> − μ0, places them
+along the measured line through the fitted profile s(x), and feeds them into the k·p wall model as
+position-dependent on-site energies (<code>layer_potential_profile</code> of <code>stacking_wall.ldos_wall</code>).
+The tip-induced part of the potential moves with the tip and is left out of the maps (the notebook adds it at
+chosen tip positions on request). The fringes of the (+⁴−) side return, together with the band shift of the
+stacks.</p>
+<p>At the position of the measured wall spectrum the flat-band peak sits at +56 mV measured,
++45 mV in the local approximation and +33 mV in the hybrid for 514; -85,
+-62 and -32 mV for 940. The hybrid bends less than the local approximation although
+it uses the same potentials: the top-layer potential of the stacks moves from +23 to
++58 meV (514) and from -32 to -77 meV (940) between s = 0 and 0.75,
+and in the γ0/γ1 model the top-layer flat band is a pure layer-1 state that takes the whole shift, while in the
+k·p model the flat-band state near the wall spreads into the layers whose potentials barely move and follows only
+part of it.</p>
+<div class="figs">
+<figure><img src="stacking_wall_hybrid_514.png" alt="hybrid map, 514">
+<figcaption>Line spectrum 514: measured dI/dV(V, x), the local approximation and the hybrid, with their bias
+derivatives; the hybrid energy axis is shifted so that its (+⁵) flat band far from the wall sits at the measured
+energy.</figcaption></figure>
+<figure><img src="stacking_wall_hybrid_940.png" alt="hybrid map, 940">
+<figcaption>Line spectrum 940, the same.</figcaption></figure>
+</div>
+<figure><img src="stacking_wall_hybrid_peaks.png" alt="flat-band peak along the line">
+<figcaption>Apparent flat-band energy along the line: measured, local approximation and hybrid, followed until
+the peak has faded to 15 % of its far value.</figcaption></figure>
+
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

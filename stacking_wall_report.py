@@ -162,6 +162,84 @@ def series_table(states):
             "relative to the (+⁵) stack; beyond s ≈ 0.8 the top-layer peak is gone and the maximum found is another feature.</p>")
 
 
+def hybrid_numbers(tag, state):
+    """Flat-band peak at the measured wall position: measured, local approximation, hybrid (V), and the
+    far-field top-layer potential of the stacks at s = 0 and 0.75 (eV); None where files are missing."""
+    import glob
+    s = state["settings"]
+    E_fb, x_wall = s["E_fb_measured"], s["x_wall"]
+    out = {"meas": _peak(np.asarray(state["measured"]["bias"]), np.asarray(state["measured"]["wall"]), E_fb, 0.09)}
+    loc_path = os.path.join(EXAMPLES, f"stacking_wall_tibb_map_{tag}.npz")
+    hyb_path = os.path.join(EXAMPLES, f"stacking_wall_hybrid_{tag}.npz")
+    fit_path = os.path.join(EXAMPLES, f"stacking_wall_{tag}.json")
+    if os.path.exists(loc_path):
+        with np.load(loc_path) as f:
+            j = int(np.argmin(np.abs(f["dist"] - x_wall)))
+            out["local"] = _peak(f["bias"], f["didv"][:, j], E_fb, 0.09)
+    if os.path.exists(hyb_path) and os.path.exists(fit_path):
+        with open(fit_path) as fh:
+            x0 = json.load(fh)["fit"]["x0"]
+        with np.load(hyb_path) as f:
+            E, x, top = f["energy"], f["x"] / 10.0 + x0, f["ldos"][-1]
+        far = x > x.max() - 30.0
+        sel = (E >= -0.12) & (E <= 0.12)
+        E_far = float(E[sel][np.argmax(top[sel][:, far].mean(axis=1))])
+        E = E + (E_fb - E_far)
+        j = int(np.argmin(np.abs(x - x_wall)))
+        out["hybrid"] = _peak(E, top[:, j], E_fb, 0.09)
+    # far-field top-layer potential of the stacks (Poisson), referred to E_F
+    recs = {0.0: state["scan"][f"{state['best_cpot']:+.3f}"]}
+    for f in [os.path.join(EXAMPLES, f"stacking_wall_tibb_{tag}.json")] + sorted(glob.glob(os.path.join(EXAMPLES, f"stacking_wall_tibb_{tag}_s*.json"))):
+        with open(f) as fh:
+            for k, r in json.load(fh).get("runs", {}).items():
+                if k.startswith("wall_s") and r.get("s") is not None:
+                    recs[float(r["s"])] = r
+    for key, sv in (("V1_0", 0.0), ("V1_075", 0.75)):
+        if sv in recs:
+            sw_ = recs[sv]["sweep"]
+            out[key] = float(np.mean(np.asarray(sw_["U_far"])[:, 0]) - sw_["mu0"])
+    return out
+
+
+def hybrid_text(states, img_prefix=""):
+    nums = {t: hybrid_numbers(t, st) for t, st in states.items()}
+    if any("hybrid" not in v for v in nums.values()):
+        return ""
+    t1, t2 = list(nums)[:2]
+    a, b = nums[t1], nums[t2]
+    mv = lambda v: f"{1e3 * v:+.0f}"   # noqa: E731
+    return f"""<h2>Hybrid: the wall model with the Poisson potentials</h2>
+<p>The two calculations are complementary: the k·p wall model has the wall and its fringes but no electrostatics,
+the Poisson solver has the electrostatics but, being axisymmetric, no wall. The notebook
+<code>examples/stacking_wall_hybrid.ipynb</code> joins them: it reads the Poisson outputs, refers the far-field
+layer potentials of every stack to the common Fermi level, V<sub>l</sub> = U<sub>far,l</sub> − μ0, places them
+along the measured line through the fitted profile s(x), and feeds them into the k·p wall model as
+position-dependent on-site energies (<code>layer_potential_profile</code> of <code>stacking_wall.ldos_wall</code>).
+The tip-induced part of the potential moves with the tip and is left out of the maps (the notebook adds it at
+chosen tip positions on request). The fringes of the (+⁴−) side return, together with the band shift of the
+stacks.</p>
+<p>At the position of the measured wall spectrum the flat-band peak sits at {mv(a['meas'])} mV measured,
+{mv(a['local'])} mV in the local approximation and {mv(a['hybrid'])} mV in the hybrid for {t1}; {mv(b['meas'])},
+{mv(b['local'])} and {mv(b['hybrid'])} mV for {t2}. The hybrid bends less than the local approximation although
+it uses the same potentials: the top-layer potential of the stacks moves from {mv(a['V1_0'])} to
+{mv(a['V1_075'])} meV ({t1}) and from {mv(b['V1_0'])} to {mv(b['V1_075'])} meV ({t2}) between s = 0 and 0.75,
+and in the γ0/γ1 model the top-layer flat band is a pure layer-1 state that takes the whole shift, while in the
+k·p model the flat-band state near the wall spreads into the layers whose potentials barely move and follows only
+part of it.</p>
+<div class="figs">
+<figure><img src="{img_prefix}stacking_wall_hybrid_{t1}.png" alt="hybrid map, {t1}">
+<figcaption>Line spectrum {t1}: measured dI/dV(V, x), the local approximation and the hybrid, with their bias
+derivatives; the hybrid energy axis is shifted so that its (+⁵) flat band far from the wall sits at the measured
+energy.</figcaption></figure>
+<figure><img src="{img_prefix}stacking_wall_hybrid_{t2}.png" alt="hybrid map, {t2}">
+<figcaption>Line spectrum {t2}, the same.</figcaption></figure>
+</div>
+<figure><img src="{img_prefix}stacking_wall_hybrid_peaks.png" alt="flat-band peak along the line">
+<figcaption>Apparent flat-band energy along the line: measured, local approximation and hybrid, followed until
+the peak has faded to 15 % of its far value.</figcaption></figure>
+"""
+
+
 def tibb_text(states, img_prefix=""):
     """Interpretation of the band-bending results, with the numbers of the result files."""
     n = {t: tibb_numbers(st) for t, st in states.items()}
@@ -214,6 +292,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 <figure><img src="{img_prefix}stacking_wall_tibb_map_940.png" alt="simulated line spectrum across the wall, 940">
 <figcaption>Line spectrum 940, the same.</figcaption></figure>
 </div>
+{hybrid_text(states, img_prefix)}
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

@@ -240,6 +240,65 @@ the peak has faded to 15 % of its far value.</figcaption></figure>
 """
 
 
+def bump_numbers(tag):
+    """Per tip position: s, top-layer bump (eV), peak with and without the bump (eV, aligned)."""
+    path = os.path.join(EXAMPLES, f"stacking_wall_bump_{tag}.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        st = json.load(fh)
+    s = st["settings"]
+    runs = st["runs"]
+    hyb_path = os.path.join(EXAMPLES, f"stacking_wall_hybrid_{tag}.npz")
+    shift = 0.0
+    if os.path.exists(hyb_path):
+        with np.load(hyb_path) as f:
+            E, x, top = f["energy"], f["x"] / 10.0 + s["x0"], f["ldos"][-1]
+        far = x > x.max() - 30.0
+        sel = (E >= -0.12) & (E <= 0.12)
+        shift = s["E_fb"] - float(E[sel][np.argmax(top[sel][:, far].mean(axis=1))])
+    rows = []
+    for r in sorted((r for r in runs.values() if r["variant"] == "bump"), key=lambda r: r["x"]):
+        ref = runs.get(f"{r['x']:+.1f}_none")
+        rows.append({"x": r["x"], "s": r["s"], "bump": r["bump"][0], "peak": r["peak"] + shift,
+                     "peak_ref": (ref["peak"] + shift) if ref else None, "height": r["height"],
+                     "height_ref": ref["height"] if ref else None})
+    return {"settings": s, "rows": rows}
+
+
+def bump_text(states, img_prefix=""):
+    nums = {t: bump_numbers(t) for t in states}
+    if any(v is None or not v["rows"] for v in nums.values()):
+        return ""
+    table = []
+    for t, v in nums.items():
+        for r in v["rows"]:
+            ref = f"{1e3 * r['peak_ref']:+.0f}" if r["peak_ref"] is not None else "–"
+            extra = f"{1e3 * (r['peak'] - r['peak_ref']):+.0f}" if r["peak_ref"] is not None else "–"
+            table.append(f"<tr><td>{t}</td><td>{r['x']:+.0f} nm</td><td>{r['s']:.2f}</td><td>{1e3 * r['bump']:+.0f} meV</td>"
+                         f"<td>{ref} / {1e3 * r['peak']:+.0f} mV</td><td>{extra} mV</td></tr>")
+    s0 = next(iter(nums.values()))["settings"]
+    biases = ", ".join(f"{1e3 * v['settings']['bias']:+.0f} mV ({t})" for t, v in nums.items())
+    extras = {t: max((abs(r["peak"] - r["peak_ref"]) for r in v["rows"] if r["peak_ref"] is not None), default=0.0)
+              for t, v in nums.items()}
+    worst = ", ".join(f"{1e3 * e:.0f} mV ({t})" for t, e in extras.items())
+    return f"""<h3>The tip-induced bump</h3>
+<p>The Poisson solver also gives the potential under the apex, U0,l(V) − U_far,l, which moves with the tip. It is
+added to the hybrid as a Gaussian bump of width w = √(2Rd) = {s0['spot']:.1f} nm centred on the tip, with the
+amplitude of the stack at s(x_tip) at the bias where the flat-band peak is measured at the wall ({biases}), and the
+wall model is solved once per tip position (cell {s0['length']:.0f} nm, k_y step {s0['dky']} Å⁻¹, {1e3 * s0['sigma']:.0f} meV
+broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
+without and with the bump; the largest change the bump makes is {worst}.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change</th></tr>
+{''.join(table)}
+</table></div>
+<figure><img src="{img_prefix}stacking_wall_bump.png" alt="top-layer LDOS under the tip with and without the bump">
+<figcaption>Top-layer LDOS under the tip for the hybrid without (blue) and with (orange) the tip-induced bump at
+each tip position, and the resulting flat-band peak against the tip position.</figcaption></figure>
+"""
+
+
 def tibb_text(states, img_prefix=""):
     """Interpretation of the band-bending results, with the numbers of the result files."""
     n = {t: tibb_numbers(st) for t, st in states.items()}
@@ -293,6 +352,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 <figcaption>Line spectrum 940, the same.</figcaption></figure>
 </div>
 {hybrid_text(states, img_prefix)}
+{bump_text(states, img_prefix)}
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

@@ -465,7 +465,7 @@ def parse_args():
     p.add_argument("--x-sf", type=float, required=True)
     p.add_argument("--x-rg", type=float, required=True)
     p.add_argument("--x-wall", type=float, default=None, help="position of the bend (nm); default from the fit json")
-    p.add_argument("--s", type=float, default=0.75, help="(+4-) weight of the wall Hamiltonian")
+    p.add_argument("--s", type=float, nargs="+", default=[0.75], help="(+4-) weights of the wall Hamiltonian")
     p.add_argument("--cpot", type=float, nargs="+", default=[-0.2, -0.1, 0.0, 0.1, 0.2])
     p.add_argument("--radius", type=float, default=20.0)
     p.add_argument("--separation", type=float, default=0.7)
@@ -482,6 +482,7 @@ def parse_args():
     p.add_argument("--wall-hcoarse", type=float, default=0.3, help="coarse eps panel of the wall quadrature (eV)")
     p.add_argument("--stage", choices=["fit", "wall", "all"], default="all")
     p.add_argument("--out", default=None, help="output json (default examples/stacking_wall_tibb_TAG.json)")
+    p.add_argument("--base", default=None, help="json with the fitted contact potential and doping (default: --out)")
     p.add_argument("--ckpt-dir", default=None, help="directory of the per-point checkpoints (default: next to --out)")
     return p.parse_args()
 
@@ -492,6 +493,7 @@ def main():
     args = parse_args()
     out_path = args.out or os.path.join(EXAMPLES, f"stacking_wall_tibb_{args.tag}.json")
     state = json.load(open(out_path)) if os.path.exists(out_path) else {}
+    base = json.load(open(args.base)) if args.base else state
     ckpt_dir = args.ckpt_dir or os.path.dirname(out_path)
     os.makedirs(ckpt_dir, exist_ok=True)
     ckpt = lambda label: os.path.join(ckpt_dir, f"stacking_wall_tibb_{args.tag}_{label}.ckpt.json")   # noqa: E731
@@ -516,7 +518,7 @@ def main():
               "temperature": args.temperature, "broadening": args.broadening, "modulation": args.modulation,
               "bias_step": args.bias_step, "grid": args.grid, "wall_grid": args.wall_grid,
               "wall_hfine": args.wall_hfine, "wall_hcoarse": args.wall_hcoarse,
-              "fermi_level": -E_fb, "E_fb_measured": E_fb, "x_wall": args.x_wall, "s": args.s, "n_phi": args.n_phi}
+              "fermi_level": -E_fb, "E_fb_measured": E_fb, "x_wall": args.x_wall, "s": args.s[0], "n_phi": args.n_phi}
     state["settings"] = common
     state["measured"] = {k: (v.tolist() if isinstance(v, np.ndarray) else v) for k, v in meas.items()}
 
@@ -547,12 +549,16 @@ def main():
 
     # ---- 2, 3. the wall and the (+4-) stack with the same doping and tip -------------
     if args.stage in ("wall", "all"):
-        cpot = state["best_cpot"]
-        doping = state["doping"]
+        cpot = base["best_cpot"]
+        doping = base["doping"]
+        state["best_cpot"], state["doping"] = cpot, doping
         tip = Tip(radius=args.radius, separation=args.separation, contact_potential=cpot)
         runs = state.setdefault("runs", {})
-        for name, stacking, wall_s, mkey in (("SF", SEQ_SF, None, "sf"), (WALL_NAME, SEQ_RG, args.s, "wall")):
-            rkey = f"{mkey}_s{args.s:.2f}" if wall_s is not None else mkey
+        jobs = [(WALL_NAME, SEQ_RG, s, "wall") for s in args.s]
+        if "sf" not in base.get("runs", {}):                 # the (+4-) sweep lives in the base file
+            jobs.insert(0, ("SF", SEQ_SF, None, "sf"))
+        for name, stacking, wall_s, mkey in jobs:
+            rkey = f"{mkey}_s{wall_s:.2f}" if wall_s is not None else mkey
             if rkey in runs:
                 continue
             sample = make_sample(stacking, name, doping=doping, broadening=args.broadening)

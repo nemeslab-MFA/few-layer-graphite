@@ -257,12 +257,18 @@ def bump_numbers(tag):
         far = x > x.max() - 30.0
         sel = (E >= -0.12) & (E <= 0.12)
         shift = s["E_fb"] - float(E[sel][np.argmax(top[sel][:, far].mean(axis=1))])
+    def centroid(run):
+        E, y = np.asarray(run["energy"]), np.asarray(run["ldos"])
+        sel = (E >= run["peak"] - 0.03) & (E <= run["peak"] + 0.03)
+        yb = y[sel] - y[sel].min()
+        return float(np.sum(E[sel] * yb) / np.sum(yb))
     rows = []
     for r in sorted((r for r in runs.values() if r["variant"] == "bump"), key=lambda r: r["x"]):
         ref = runs.get(f"{r['x']:+.1f}_none")
         rows.append({"x": r["x"], "s": r["s"], "bump": r["bump"][0], "peak": r["peak"] + shift,
                      "peak_ref": (ref["peak"] + shift) if ref else None, "height": r["height"],
-                     "height_ref": ref["height"] if ref else None})
+                     "height_ref": ref["height"] if ref else None,
+                     "dcentroid": (centroid(r) - centroid(ref)) if ref else None})
     return {"settings": s, "rows": rows}
 
 
@@ -274,23 +280,27 @@ def bump_text(states, img_prefix=""):
     for t, v in nums.items():
         for r in v["rows"]:
             ref = f"{1e3 * r['peak_ref']:+.0f}" if r["peak_ref"] is not None else "–"
-            extra = f"{1e3 * (r['peak'] - r['peak_ref']):+.0f}" if r["peak_ref"] is not None else "–"
+            extra = f"{1e3 * (r['peak'] - r['peak_ref']):+.1f}" if r["peak_ref"] is not None else "–"
+            dc = f"{1e3 * r['dcentroid']:+.1f}" if r.get("dcentroid") is not None else "–"
             table.append(f"<tr><td>{t}</td><td>{r['x']:+.0f} nm</td><td>{r['s']:.2f}</td><td>{1e3 * r['bump']:+.0f} meV</td>"
-                         f"<td>{ref} / {1e3 * r['peak']:+.0f} mV</td><td>{extra} mV</td></tr>")
+                         f"<td>{ref} / {1e3 * r['peak']:+.0f} mV</td><td>{extra} mV</td><td>{dc} mV</td></tr>")
     s0 = next(iter(nums.values()))["settings"]
     biases = ", ".join(f"{1e3 * v['settings']['bias']:+.0f} mV ({t})" for t, v in nums.items())
-    extras = {t: max((abs(r["peak"] - r["peak_ref"]) for r in v["rows"] if r["peak_ref"] is not None), default=0.0)
+    extras = {t: max((abs(r["dcentroid"]) for r in v["rows"] if r.get("dcentroid") is not None), default=0.0)
               for t, v in nums.items()}
-    worst = ", ".join(f"{1e3 * e:.0f} mV ({t})" for t, e in extras.items())
+    worst = ", ".join(f"{1e3 * e:.1f} mV ({t})" for t, e in extras.items())
     return f"""<h3>The tip-induced bump</h3>
 <p>The Poisson solver also gives the potential under the apex, U0,l(V) − U_far,l, which moves with the tip. It is
 added to the hybrid as a Gaussian bump of width w = √(2Rd) = {s0['spot']:.1f} nm centred on the tip, with the
 amplitude of the stack at s(x_tip) at the bias where the flat-band peak is measured at the wall ({biases}), and the
 wall model is solved once per tip position (cell {s0['length']:.0f} nm, k_y step {s0['dky']} Å⁻¹, {1e3 * s0['sigma']:.0f} meV
 broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
-without and with the bump; the largest change the bump makes is {worst}.</p>
+without and with the bump (the energy grid of the peak is 2.5 meV; the centroid of the peak resolves below that);
+the largest change the bump makes to the peak centroid is {worst}, against a measured bend of 35 to 55 mV. Within
+the self-consistent model the tip's own potential does not move the flat band at the wall; the bend it leaves
+unexplained is not a tip effect that the local approximation missed.</p>
 <div class="tablewrap"><table>
-<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change</th></tr>
+<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change of the maximum</th><th>change of the centroid</th></tr>
 {''.join(table)}
 </table></div>
 <figure><img src="{img_prefix}stacking_wall_bump.png" alt="top-layer LDOS under the tip with and without the bump">

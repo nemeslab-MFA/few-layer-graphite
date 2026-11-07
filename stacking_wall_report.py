@@ -119,6 +119,49 @@ def tibb_numbers(state):
     return out
 
 
+def series_rows(tag, state):
+    """(s, simulated peak (V), peak height relative to s = 0) of the wall series of one line."""
+    import glob
+    fine = np.asarray(state.get("fine_bias", []))
+    if not fine.size or "scan" not in state:
+        return []
+    E_fb = state["settings"]["E_fb_measured"]
+    runs = {0.0: state["scan"][f"{state['best_cpot']:+.3f}"]}
+    files = [os.path.join(EXAMPLES, f"stacking_wall_tibb_{tag}.json")]
+    files += sorted(glob.glob(os.path.join(EXAMPLES, f"stacking_wall_tibb_{tag}_s*.json")))
+    for f in files:
+        with open(f) as fh:
+            for k, r in json.load(fh).get("runs", {}).items():
+                if k.startswith("wall_s") and r.get("s") is not None:
+                    runs[float(r["s"])] = r
+    sel = (fine >= E_fb - 0.09) & (fine <= E_fb + 0.09)
+    h0 = np.asarray(runs[0.0]["didv"])[sel].max()
+    out = []
+    for s in sorted(runs):
+        y = np.asarray(runs[s]["didv"])[sel]
+        out.append((s, float(fine[sel][np.argmax(y)]), float(y.max() / h0)))
+    return out
+
+
+def series_table(states):
+    tags = list(states)
+    rows = {t: series_rows(t, states[t]) for t in tags}
+    s_all = sorted({s for r in rows.values() for s, _, _ in r})
+    if len(s_all) < 3:
+        return ""
+    head = "".join(f"<th>peak {t} / height</th>" for t in tags)
+    body = []
+    for s in s_all:
+        cells = []
+        for t in tags:
+            m = {a: (b, c) for a, b, c in rows[t]}
+            cells.append(f"<td>{1e3 * m[s][0]:+.0f} mV / {m[s][1]:.2f}</td>" if s in m else "<td>–</td>")
+        body.append(f"<tr><td>{s:.2f}</td>{''.join(cells)}</tr>")
+    return (f"<div class=\"tablewrap\"><table><tr><th>s</th>{head}</tr>{''.join(body)}</table></div>"
+            "<p class=\"lede\">Simulated flat-band peak of the wall stack against the (+⁴−) weight s, with its height "
+            "relative to the (+⁵) stack; beyond s ≈ 0.8 the top-layer peak is gone and the maximum found is another feature.</p>")
+
+
 def tibb_text(states, img_prefix=""):
     """Interpretation of the band-bending results, with the numbers of the result files."""
     n = {t: tibb_numbers(st) for t, st in states.items()}
@@ -163,6 +206,7 @@ spectrum of the (+⁴−) side, and there are no fringes, since the local approx
 Two differences stand out: the simulated flat band disappears over a shorter distance than the measured one,
 because in the γ0/γ1 model the top layer keeps most of its flat-band weight until s ≈ 0.75, and the simulated
 (+⁴−) side keeps the Dirac-point offset discussed above.</p>
+{series_table(states)}
 <div class="figs">
 <figure><img src="{img_prefix}stacking_wall_tibb_map_514.png" alt="simulated line spectrum across the wall, 514">
 <figcaption>Line spectrum 514: measured dI/dV(V, x) and its bias derivative (left) against the simulated

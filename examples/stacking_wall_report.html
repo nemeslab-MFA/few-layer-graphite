@@ -183,6 +183,23 @@ stacking-fault region sits near neutrality because its compensating charge can m
 The per-layer charge was the only way to place the (+⁵) flat band at the measured energy in this
 γ0/γ1 model (substrate traps alone pin it at E<sub>F</sub>); transferred to the other stacks it overstates
 their band offsets, so the intrinsic shift it produces at the wall is an upper estimate.</p>
+<p><b>Across the wall.</b> The wall stack was then solved at s = 0.15, 0.30, 0.45, 0.60, 0.75 and 0.90 with
+the same tip and doping (50 mV bias steps), and the simulated top-layer dI/dV was placed along the measured line
+through the fitted profile s(x) = [1 − tanh((x − x0)/l)]/2, interpolated linearly between the s values with one
+global scale. The simulated maps reproduce the sequence of the measurement: the flat band of the (+⁵) side bends
+up (514) or down (940) as it fades into the wall, the (+⁵) gap edges at ±0.2 to 0.3 V give way to the V-shaped
+spectrum of the (+⁴−) side, and there are no fringes, since the local approximation has no lateral scattering.
+Two differences stand out: the simulated flat band disappears over a shorter distance than the measured one,
+because in the γ0/γ1 model the top layer keeps most of its flat-band weight until s ≈ 0.75, and the simulated
+(+⁴−) side keeps the Dirac-point offset discussed above.</p>
+<div class="tablewrap"><table><tr><th>s</th><th>peak 514 / height</th><th>peak 940 / height</th></tr><tr><td>0.00</td><td>+25 mV / 1.00</td><td>-40 mV / 1.00</td></tr><tr><td>0.15</td><td>+30 mV / 0.89</td><td>-48 mV / 0.91</td></tr><tr><td>0.30</td><td>+35 mV / 0.76</td><td>-52 mV / 0.80</td></tr><tr><td>0.45</td><td>+40 mV / 0.62</td><td>-58 mV / 0.65</td></tr><tr><td>0.60</td><td>+45 mV / 0.46</td><td>-62 mV / 0.47</td></tr><tr><td>0.75</td><td>+45 mV / 0.28</td><td>-62 mV / 0.28</td></tr><tr><td>0.90</td><td>-65 mV / 0.17</td><td>+58 mV / 0.20</td></tr></table></div><p class="lede">Simulated flat-band peak of the wall stack against the (+⁴−) weight s, with its height relative to the (+⁵) stack; beyond s ≈ 0.8 the top-layer peak is gone and the maximum found is another feature.</p>
+<div class="figs">
+<figure><img src="stacking_wall_tibb_map_514.png" alt="simulated line spectrum across the wall, 514">
+<figcaption>Line spectrum 514: measured dI/dV(V, x) and its bias derivative (left) against the simulated
+top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption></figure>
+<figure><img src="stacking_wall_tibb_map_940.png" alt="simulated line spectrum across the wall, 940">
+<figcaption>Line spectrum 940, the same.</figcaption></figure>
+</div>
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

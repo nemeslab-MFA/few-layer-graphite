@@ -119,7 +119,7 @@ def tibb_numbers(state):
     return out
 
 
-def tibb_text(states):
+def tibb_text(states, img_prefix=""):
     """Interpretation of the band-bending results, with the numbers of the result files."""
     n = {t: tibb_numbers(st) for t, st in states.items()}
     if any("wall_peak" not in v for v in n.values()):
@@ -154,6 +154,22 @@ stacking-fault region sits near neutrality because its compensating charge can m
 The per-layer charge was the only way to place the (+⁵) flat band at the measured energy in this
 γ0/γ1 model (substrate traps alone pin it at E<sub>F</sub>); transferred to the other stacks it overstates
 their band offsets, so the intrinsic shift it produces at the wall is an upper estimate.</p>
+<p><b>Across the wall.</b> The wall stack was then solved at s = 0.15, 0.30, 0.45, 0.60, 0.75 and 0.90 with
+the same tip and doping (50 mV bias steps), and the simulated top-layer dI/dV was placed along the measured line
+through the fitted profile s(x) = [1 − tanh((x − x0)/l)]/2, interpolated linearly between the s values with one
+global scale. The simulated maps reproduce the sequence of the measurement: the flat band of the (+⁵) side bends
+up (514) or down (940) as it fades into the wall, the (+⁵) gap edges at ±0.2 to 0.3 V give way to the V-shaped
+spectrum of the (+⁴−) side, and there are no fringes, since the local approximation has no lateral scattering.
+Two differences stand out: the simulated flat band disappears over a shorter distance than the measured one,
+because in the γ0/γ1 model the top layer keeps most of its flat-band weight until s ≈ 0.75, and the simulated
+(+⁴−) side keeps the Dirac-point offset discussed above.</p>
+<div class="figs">
+<figure><img src="{img_prefix}stacking_wall_tibb_map_514.png" alt="simulated line spectrum across the wall, 514">
+<figcaption>Line spectrum 514: measured dI/dV(V, x) and its bias derivative (left) against the simulated
+top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption></figure>
+<figure><img src="{img_prefix}stacking_wall_tibb_map_940.png" alt="simulated line spectrum across the wall, 940">
+<figcaption>Line spectrum 940, the same.</figcaption></figure>
+</div>
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and
@@ -213,7 +229,7 @@ factor free.</p>
 <figure><img src="{img_prefix}stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
 <figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
 term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
-{tibb_text(states)}
+{tibb_text(states, img_prefix)}
 """
 
 

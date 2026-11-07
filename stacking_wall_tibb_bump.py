@@ -149,10 +149,16 @@ def plot():
         ax.set(xlim=(-0.3, 0.35), xlabel="E − E_F (eV)", ylabel="top-layer LDOS under the tip (offset)",
                title=f"{t}: hybrid without (blue) and with (orange) the tip-induced bump, V = {s['bias']:+.3f} V")
         ax = axs[row, 1]
-        xs = [x0 + r["x"] for r in runs]
-        ax.plot(xs, [1e3 * (r["peak"] + shift) for r in runs], "o-", color="#d95926", label="hybrid + bump")
-        ax.plot(xs, [1e3 * (peak(Eh + shift, top[:, int(np.argmin(np.abs(xh - x)))], E_fb)[0]) for x in xs], "s--",
-                color="#1f6fb2", label="hybrid")
+        h_max = max(r["height"] for r in runs)
+        alive = [r for r in runs if r["height"] > 0.15 * h_max]               # the peak is still there
+        xs = [x0 + r["x"] for r in alive]
+        ax.plot(xs, [1e3 * (r["peak"] + shift) for r in alive], "o-", color="#d95926", label="hybrid + bump")
+        refs = [st["runs"].get(f"{r['x']:+.1f}_none") for r in alive]
+        if all(refs):
+            ax.plot(xs, [1e3 * (q["peak"] + shift) for q in refs], "s--", color="#1f6fb2", label="hybrid (same numerics)")
+        else:
+            ax.plot(xs, [1e3 * (peak(Eh + shift, top[:, int(np.argmin(np.abs(xh - x)))], E_fb)[0]) for x in xs], "s--",
+                    color="#1f6fb2", label="hybrid")
         ax.axhline(1e3 * E_fb, color="#605d57", lw=0.6, ls=":")
         ax.axvline(x0, color="#605d57", lw=0.6, ls="--")
         ax.set(xlabel="tip position (nm)", ylabel="flat-band peak (mV)", title="apparent flat-band energy under the tip")

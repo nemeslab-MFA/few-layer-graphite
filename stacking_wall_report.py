@@ -51,7 +51,7 @@ table { border-collapse: collapse; font-family: var(--sans); font-size: 0.9rem; 
 th, td { text-align: left; padding: 0.35rem 1rem 0.35rem 0; border-bottom: 1px solid var(--rule); vertical-align: top; }
 th { font-weight: 600; color: var(--muted); font-size: 0.8rem; letter-spacing: 0.04em; text-transform: uppercase; }
 .tablewrap { overflow-x: auto; }
-.figs { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.2rem; margin-top: 0.8rem; }
+.figs { display: grid; grid-template-columns: 1fr; gap: 1.4rem; margin-top: 0.8rem; }
 figure { margin: 0; min-width: 0; }
 figure img { width: 100%; max-width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
 figcaption { font-family: var(--sans); font-size: 0.85rem; color: var(--muted); margin-top: 0.4rem; }

@@ -289,6 +289,29 @@ Results go to `examples/stacking_wall_tibb_TAG.json` (scan, sweeps, spectra)
 and `examples/stacking_wall_tibb.png`; the report collects them in its last
 section.
 
+`stacking_wall_lateral.py` drops the local approximation: it solves the
+three-dimensional Poisson problem of the tip over the wall with the lateral
+solver of the bandbending repository (branch `lateral-solver`,
+`engine/lateral.py`; needs `pyamg`).  The stack weight s(x) follows the fitted
+wall, every layer is a rigid-band charge sheet with the zero-field layer DOS of
+the local stack (`WallTB` tables at s = 0, 0.15, …, 1), the fixed charge per
+layer makes the (+⁵) stack neutral at the measured flat-band energy, and the
+tip (same radius, distance and contact potential) sits at the bias of the
+measured wall peak.  For every tip position it stores the layer potentials
+along the line with and without the tip and the bending under the apex against
+the local approximation; with `--kp` it feeds the lateral potentials to the k·p
+wall model and reads the top-layer LDOS under the tip, as the Gaussian-bump
+calculation of `stacking_wall_tibb_bump.py` does with the local potentials.
+
+```
+python stacking_wall_lateral.py --tag 514
+python stacking_wall_lateral.py --tag 514 --kp
+python stacking_wall_lateral.py --plot
+```
+
+Results go to `examples/stacking_wall_lateral_TAG.json` and
+`examples/stacking_wall_lateral.png`.
+
 ## Tests
 
 ```

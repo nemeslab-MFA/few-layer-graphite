@@ -225,3 +225,31 @@ def test_uniform_layer_potential_profile_equals_layer_potential():
     c = sw.ldos_wall(layer_potential_profile=lambda x: V[:, None] * np.cos(2 * np.pi * np.asarray(x) / 600.0)[None, :],
                      **common)
     assert not np.allclose(a["ldos"], c["ldos"])
+
+
+def test_lateral_potential_profile_is_periodic_and_reduces_to_the_columns():
+    """The k.p on-site profile built from a lateral solution: periodic on the cell, equal to
+    the lateral layer potentials (minus mu0) inside the solved box, to the columns of the
+    local stack outside it, and continuous at the box ends."""
+    pytest.importorskip("bandbending")
+    import stacking_wall_lateral as swl
+    ell, L, mu0 = 8.0, 300.0, -0.02
+    s_grid = np.asarray(swl.S_GRID)
+    cols = np.stack([0.03 * s_grid ** 2 * (1 + 0.1 * l) for l in range(6)], axis=1)            # (n_s, 6)
+    x_box = np.linspace(-60.0, 60.0, 241)
+    s_box = 0.5 * (1.0 - np.tanh(x_box / ell))
+    col_box = np.array([np.interp(s_box, s_grid, cols[:, l]) for l in range(6)])
+    U_box = col_box + 0.01 * np.exp(-0.5 * (x_box / 5.0) ** 2)[None, :] * np.exp(-0.5 * np.arange(6))[:, None]
+    f = swl.potential_profile(x_box, U_box, cols, ell, L, mu0)
+    xa = np.linspace(-1500.0, 1500.0, 1201)
+    V = f(xa)
+    assert V.shape == (6, xa.size)
+    assert np.allclose(f(xa + 10.0 * L), V) and np.allclose(f(xa - 10.0 * L), V)
+    inside = f(10.0 * x_box)
+    assert np.allclose(inside, U_box - mu0, atol=1e-12)
+    far = np.array([-1400.0, -900.0, 900.0, 1400.0])
+    s_far = sw.wall_profile(far, 10.0 * ell, 10.0 * L)
+    expect = np.array([np.interp(s_far, s_grid, cols[:, l]) for l in range(6)]) - mu0
+    assert np.allclose(f(far), expect, atol=1e-12)
+    # continuous across the box ends (the lateral correction vanishes there)
+    assert np.max(np.abs(f(np.array([600.0 - 1e-6])) - f(np.array([600.0 + 1e-6])))) < 1e-6

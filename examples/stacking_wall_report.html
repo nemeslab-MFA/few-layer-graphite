@@ -273,11 +273,51 @@ unexplained is not a tip effect that the local approximation missed.</p>
 <figcaption>Top-layer LDOS under the tip for the hybrid without (blue) and with (orange) the tip-induced bump at
 each tip position, and the resulting flat-band peak against the tip position.</figcaption></figure>
 
+<h3>The lateral problem</h3>
+<p>The local approximation was dropped last. The Poisson equation was solved in three dimensions with the wall in
+it (bandbending branch <code>lateral-solver</code>, <code>engine/lateral.py</code>; driver
+<code>stacking_wall_lateral.py</code>): a Cartesian finite-volume grid with mirror symmetry across the line, the
+same hyperbolic tip (R = 20 nm, d = 0.7 nm, CPot = 0) as a Dirichlet body, the
+six layers as rigid-band charge sheets whose density follows the zero-field layer DOS of the local stack
+(<code>WallTB</code> tables at s = 0, 0.15, …, 1 along the fitted profile), the oxide and the gate below, and far-field
+boundaries from the tip-free columns of the local stack plus the engine's axisymmetric tip field. One energy
+reference serves all stacks: the fixed charge per layer makes the (+⁵) stack neutral with its Fermi level at
+μ0 = -23 meV (514) and +32 meV (940) from its neutrality point, as measured, and
+the (+⁴−) stack, joined to it, shares that Fermi level and the gate; its top-layer potential far from the wall comes
+out at +30 meV (514) and -47 meV (940). The local approximation, with its
+own Fermi level per stack and the engine's slightly different layer charges, placed the (+⁴−)-side potentials a few meV
+away, which is why the tip-free k·p peaks below sit about 5 mV from those of the hybrid. The tip sits at the
+bias of the measured wall peak, +56 mV (514) and -85 mV (940), and was placed
+at 19 positions across the wall; a solve has about 246 thousand unknowns and takes
+18 s (Newton with algebraic-multigrid conjugate gradients).</p>
+<p>Three results. First, without the tip the built-in step of the layer potentials across the wall (top layer
+0 to +30 meV in 514, 0 to -47 meV in 940) follows the columns of the local
+stack to within 0.8 meV (514, wall length 8.8 nm) and 3.8 meV
+(940, 5.6 nm): the stack screens laterally over a length well below the wall width, so the local treatment
+of the far field was adequate. Second, the tip-induced bending under the apex differs from the local approximation
+by -4 to +56 %, at most 2.5 meV, across the positions solved (table and figure; the reference is the
+uniform stack at s(x_tip) solved with the same code): the field of the tip averages the local response over its
+footprint, which smooths the kinks of the local curve where the top-layer density of states changes quickly with s,
+and reaches into the weakly screening (+⁴−) region, but the result stays a few-meV effect. (The engine's local-approximation sweeps differ from the uniform-stack solves of the same code by -6 to +169 %: their fixed charge per layer differs by 20 % in the top layer, and the bending scales with the inverse density of states at E<sub>F</sub>, which on the flank of the flat band changes by about 20 % per meV of Fermi-level position. That sensitivity is a property of the rigid-band model, not of the geometry.) The tip-induced part of the top-layer potential with
+the tip at the wall centre has a full width at half maximum of 10 nm (514; 4 nm towards
+(+⁴−), 5 nm towards (+⁵)) against the 12.5 nm of the Gaussian bump used above. Third, fed into the
+k·p wall model in place of the Gaussian bump, the maximum of the k·p flat-band peak under the tip moves by at most 2.5 mV (its energy grid is 2.5 mV) and its centroid by at most 0.8 mV. The conclusion of the local approximation stands: the
+self-consistent tip-induced band bending at the flat-band bias is a few meV also when the lateral problem is solved,
+and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: uniform / lateral</th><th>layer 2: uniform / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
+<tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+4.1 / +4.5 meV</td><td>+1.9 / +2.1 meV</td><td>flat-band peak faded</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+5.6 / +6.1 meV</td><td>+2.7 / +2.9 meV</td><td>+28 / +28 mV (centroid +0.3)</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7.7 / +7.9 meV</td><td>+3.8 / +3.9 meV</td><td>+28 / +28 mV (centroid +0.4)</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9.0 / +8.8 meV</td><td>+4.6 / +4.5 meV</td><td>+28 / +28 mV (centroid +0.4)</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+8.8 / +8.6 meV</td><td>+4.7 / +4.6 meV</td><td>+28 / +28 mV (centroid +0.3)</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-5.8 / -5.9 meV</td><td>-2.8 / -2.9 meV</td><td>flat-band peak faded</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-5.2 / -5.6 meV</td><td>-2.6 / -2.8 meV</td><td>-37 / -40 mV (centroid -0.8)</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-4.4 / -6.9 meV</td><td>-2.4 / -3.7 meV</td><td>-37 / -37 mV (centroid -0.5)</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-10.9 / -11.2 meV</td><td>-6.0 / -6.2 meV</td><td>-35 / -37 mV (centroid -0.7)</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-14.2 / -13.6 meV</td><td>-8.1 / -7.8 meV</td><td>-35 / -35 mV (centroid -0.5)</td></tr>
+</table></div>
+<figure><img src="stacking_wall_lateral.png" alt="lateral solve: layer potentials, apex bending and k.p peak against the tip position">
+<figcaption>Lateral solve. Left: layer potentials along the line without the tip (blue) and the top layer with the
+tip at several positions (orange). Middle: tip-induced bending under the apex against the tip position, lateral
+solve (solid) and local approximation (dashed), layers 1 and 2. Right: flat-band peak under the tip from the k·p
+model with the lateral potentials, with and without the tip, and the Gaussian-bump result.</figcaption></figure>
 
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and
-only on the (+⁴−) stack itself does the tip reach 15 to 30 meV of bending. What the local approximation cannot hold is the tip's field reaching across the wall into the (+⁴−) region, where screening is weak, while the tip sits over the fading flat band; that lateral problem, a Poisson solution with the wall in it, is the natural next step and is outside the axisymmetric engine. The fit of the (+⁵) spectra leaves the contact
+only on the (+⁴−) stack itself does the tip reach 15 to 30 meV of bending. The tip's field reaching across the wall into the weakly screening (+⁴−) region was then checked with the three-dimensional solve: it changes the bending under the apex by at most 2.5 meV (at one position of 940 where the local response has a kink; 1.8 meV or less elsewhere), so the lateral problem does not rescue the tip-gating explanation either. The fit of the (+⁵) spectra leaves the contact
 potential within about ±0.05 eV of zero, consistent with the sign reversal of the bend between the two
 measurements.</p>
 

@@ -337,6 +337,7 @@ def lateral_numbers(tag):
     step_dev = float(np.max(np.abs(U0 - col_x)))
     # width of the tip-induced part of the top layer with the tip at the wall centre
     dU = np.asarray(r0["U"])[0] - U0[0]
+    dU = dU * np.sign(dU[int(np.argmin(np.abs(x - r0["x_tip"])))])     # bending down counts as positive here
     half = 0.5 * dU.max()
     above = x[dU >= half]
     fwhm = float(above.max() - above.min()) if above.size else float("nan")
@@ -350,12 +351,18 @@ def lateral_numbers(tag):
         far = xh > xh.max() - 30.0
         sel = (E >= -0.12) & (E <= 0.12)
         shift = s["E_fb"] - float(E[sel][np.argmax(top[sel][:, far].mean(axis=1))])
+    def centroid(run):
+        E, y = np.asarray(run["energy"]), np.asarray(run["ldos"])
+        sel = (E >= run["peak"] - 0.03) & (E <= run["peak"] + 0.03)
+        yb = y[sel] - y[sel].min()
+        return float(np.sum(E[sel] * yb) / np.sum(yb))
     rows = []
     for r in sorted(runs.values(), key=lambda r: r["x_tip"]):
         a, b = kp.get(f"{r['x_tip']:+.1f}_tip"), kp.get(f"{r['x_tip']:+.1f}_none")
         rows.append(dict(x=r["x_tip"], s=r["s"], dU=r["dU_apex"], dU_local=r["dU_local"], dU_uniform=r.get("dU_uniform"),
                          peak=(a["peak"] + shift) if a else None, peak_ref=(b["peak"] + shift) if b else None,
-                         height=a["height"] if a else None, height_ref=b["height"] if b else None))
+                         height=a["height"] if a else None, height_ref=b["height"] if b else None,
+                         dcentroid=(centroid(a) - centroid(b)) if (a and b) else None))
     return dict(settings=s, sf_top=float(cols[-1, 0]), step_dev=step_dev, fwhm=fwhm, left=left, right=right,
                 rows=rows, n_positions=len(runs), seconds=float(np.mean([r["seconds"] for r in runs.values()])),
                 nodes=int(np.mean([r["n_free"] for r in runs.values()])))
@@ -373,7 +380,7 @@ def lateral_text(states, img_prefix=""):
                 continue                                             # positions without k.p spectra are in the figure only
             faded = r["height"] < 0.15 * h_max or abs(r["peak"] - v["settings"]["E_fb"]) > 0.06
             peaks = ("flat-band peak faded" if faded else
-                     f"{1e3 * r['peak_ref']:+.0f} / {1e3 * r['peak']:+.0f} mV ({1e3 * (r['peak'] - r['peak_ref']):+.1f})")
+                     f"{1e3 * r['peak_ref']:+.0f} / {1e3 * r['peak']:+.0f} mV (centroid {1e3 * r['dcentroid']:+.1f})")
             ref = r["dU_uniform"] if r["dU_uniform"] is not None else r["dU_local"]
             table.append(f"<tr><td>{t}</td><td>{r['x']:+.0f} nm</td><td>{r['s']:.2f}</td>"
                          f"<td>{1e3 * ref[0]:+.1f} / {1e3 * r['dU'][0]:+.1f} meV</td>"
@@ -399,8 +406,11 @@ def lateral_text(states, img_prefix=""):
                and r["height"] >= 0.15 * max(q["height"] for q in v["rows"] if q["height"] is not None)
                and abs(r["peak"] - v["settings"]["E_fb"]) <= 0.06]
     worst = max((abs(r["peak"] - r["peak_ref"]) for r in kp_rows), default=None)
-    worst_txt = (f"the largest change of the k·p peak under the tip is {1e3 * worst:.1f} mV (grid 2.5 mV)"
-                 if worst is not None else "the k·p spectra are not finished")
+    worst_c = max((abs(r["dcentroid"]) for r in kp_rows if r["dcentroid"] is not None), default=None)
+    worst_txt = (f"the maximum of the k·p flat-band peak under the tip moves by at most {1e3 * worst:.1f} mV (its energy grid is "
+                 f"2.5 mV) and its centroid by at most {1e3 * worst_c:.1f} mV"
+                 if worst is not None and worst_c is not None else "the k·p spectra are not finished")
+    abs_lat = max(abs(r["dU"][0] - r["dU_uniform"][0]) for v in nums.values() for r in v["rows"] if r["dU_uniform"] is not None)
     return f"""<h3>The lateral problem</h3>
 <p>The local approximation was dropped last. The Poisson equation was solved in three dimensions with the wall in
 it (bandbending branch <code>lateral-solver</code>, <code>engine/lateral.py</code>; driver
@@ -409,21 +419,24 @@ same hyperbolic tip (R = {sa['radius']:.0f} nm, d = {sa['separation']:.1f} nm, C
 six layers as rigid-band charge sheets whose density follows the zero-field layer DOS of the local stack
 (<code>WallTB</code> tables at s = 0, 0.15, …, 1 along the fitted profile), the oxide and the gate below, and far-field
 boundaries from the tip-free columns of the local stack plus the engine's axisymmetric tip field. One energy
-reference serves all stacks: the fixed charge per layer makes the (+⁵) stack neutral with its Fermi level
-{1e3 * sa['mu0']:+.0f} meV ({t1}) and {1e3 * sb['mu0']:+.0f} meV ({t2}) below its neutrality point, as measured, and
+reference serves all stacks: the fixed charge per layer makes the (+⁵) stack neutral with its Fermi level at
+μ0 = {1e3 * sa['mu0']:+.0f} meV ({t1}) and {1e3 * sb['mu0']:+.0f} meV ({t2}) from its neutrality point, as measured, and
 the (+⁴−) stack, joined to it, shares that Fermi level and the gate; its top-layer potential far from the wall comes
-out at {1e3 * a['sf_top']:+.0f} meV ({t1}) and {1e3 * b['sf_top']:+.0f} meV ({t2}) (the local approximation, with its
-own Fermi level per stack and the engine's slightly different layer charges, gave about 4 meV more). The tip sits at the
+out at {1e3 * a['sf_top']:+.0f} meV ({t1}) and {1e3 * b['sf_top']:+.0f} meV ({t2}). The local approximation, with its
+own Fermi level per stack and the engine's slightly different layer charges, placed the (+⁴−)-side potentials a few meV
+away, which is why the tip-free k·p peaks below sit about 5 mV from those of the hybrid. The tip sits at the
 bias of the measured wall peak, {1e3 * sa['bias']:+.0f} mV ({t1}) and {1e3 * sb['bias']:+.0f} mV ({t2}), and was placed
 at {a['n_positions']} positions across the wall; a solve has about {a['nodes'] / 1e3:.0f} thousand unknowns and takes
 {a['seconds']:.0f} s (Newton with algebraic-multigrid conjugate gradients).</p>
-<p>Three results. First, without the tip the built-in step of the layer potentials across the wall follows the
-columns of the local stack to within {1e3 * max(a['step_dev'], b['step_dev']):.1f} meV: the stack screens laterally
-over a length far below the {sa['ell']:.0f} to {sb['ell']:.0f} nm of the wall, so the local treatment of the far field
-was exact for practical purposes. Second, the tip-induced bending under the apex differs from the local approximation
-by {rel_txt} at the positions studied (table; the reference is the uniform stack at s(x_tip) solved with the same
-code): the field of the tip over the fading flat band does reach into the (+⁴−) region, but the gain is a fraction of a
-few-meV effect.{engine_txt} The tip-induced part of the top-layer potential with
+<p>Three results. First, without the tip the built-in step of the layer potentials across the wall (top layer
+0 to {1e3 * a['sf_top']:+.0f} meV in {t1}, 0 to {1e3 * b['sf_top']:+.0f} meV in {t2}) follows the columns of the local
+stack to within {1e3 * a['step_dev']:.1f} meV ({t1}, wall length {sa['ell']:.1f} nm) and {1e3 * b['step_dev']:.1f} meV
+({t2}, {sb['ell']:.1f} nm): the stack screens laterally over a length well below the wall width, so the local treatment
+of the far field was adequate. Second, the tip-induced bending under the apex differs from the local approximation
+by {rel_txt}, at most {1e3 * abs_lat:.1f} meV, across the positions solved (table and figure; the reference is the
+uniform stack at s(x_tip) solved with the same code): the field of the tip averages the local response over its
+footprint, which smooths the kinks of the local curve where the top-layer density of states changes quickly with s,
+and reaches into the weakly screening (+⁴−) region, but the result stays a few-meV effect.{engine_txt} The tip-induced part of the top-layer potential with
 the tip at the wall centre has a full width at half maximum of {a['fwhm']:.0f} nm ({t1}; {a['left']:.0f} nm towards
 (+⁴−), {a['right']:.0f} nm towards (+⁵)) against the 12.5 nm of the Gaussian bump used above. Third, fed into the
 k·p wall model in place of the Gaussian bump, {worst_txt}. The conclusion of the local approximation stands: the
@@ -558,10 +571,10 @@ def reading_lateral(states):
         return ("What the local approximation cannot hold is the tip's field reaching across the wall into the (+⁴−) "
                 "region, where screening is weak, while the tip sits over the fading flat band; that lateral problem, "
                 "a Poisson solution with the wall in it, is the natural next step and is outside the axisymmetric engine. ")
-    rel = max(abs(r["dU"][0] / (r["dU_uniform"] or r["dU_local"])[0] - 1.0) for v in nums.values() for r in v["rows"]
-              if abs((r["dU_uniform"] or r["dU_local"])[0]) > 1e-3)
+    devs = sorted((abs(r["dU"][0] - (r["dU_uniform"] or r["dU_local"])[0]) for v in nums.values() for r in v["rows"]), reverse=True)
     return (f"The tip's field reaching across the wall into the weakly screening (+⁴−) region was then checked with the "
-            f"three-dimensional solve: it changes the bending under the apex by at most {100 * rel:.0f} %, so the lateral "
+            f"three-dimensional solve: it changes the bending under the apex by at most {1e3 * devs[0]:.1f} meV (at one position "
+            f"of 940 where the local response has a kink; {1e3 * devs[1]:.1f} meV or less elsewhere), so the lateral "
             "problem does not rescue the tip-gating explanation either. ")
 
 

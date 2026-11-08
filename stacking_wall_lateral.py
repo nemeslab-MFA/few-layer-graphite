@@ -226,6 +226,21 @@ def run(args):
               f"(local approximation {1e3 * dl[0]:+6.2f}), layer 2 {1e3 * d[1]:+6.2f} ({1e3 * dl[1]:+6.2f}); "
               f"{prob.info['iterations']} it, {prob.n_free} nodes, {time.time() - t0:.0f} s", flush=True)
         json.dump(state, open(out_path, "w"))
+    # the local approximation with the same solver: the uniform stack at s(x_tip) under the tip
+    for key, r in runs.items():
+        if "dU_uniform" in r:
+            continue
+        t0 = time.time()
+        s_t = float(r["s"])
+        prob, ref = solve_position(tables, lambda xx, s_t=s_t: np.full(np.shape(xx), s_t), r["x_tip"], V, tip, field)
+        i0 = int(np.argmin(np.abs(prob.x - r["x_tip"])))
+        U, U0 = prob.layer_potentials(0), ref.layer_potentials(0)
+        r["dU_uniform"] = (U[:, i0] - U0[:, i0]).tolist()
+        r["apex_uniform"] = U[:, i0].tolist()
+        print(f"[{args.tag}] uniform stack at s = {s_t:.2f}: top-layer bending {1e3 * r['dU_uniform'][0]:+6.2f} meV "
+              f"(lateral {1e3 * r['dU_apex'][0]:+6.2f}, engine sweeps {1e3 * r['dU_local'][0]:+6.2f}); {time.time() - t0:.0f} s",
+              flush=True)
+        json.dump(state, open(out_path, "w"))
     if args.kp:
         kp = state.setdefault("kp", {})
         energy = np.arange(-args.e_max, args.e_max + 1e-9, 0.0025)
@@ -277,14 +292,17 @@ def plot():
                     label=f"tip at {r['x_tip']:+.0f} nm" if i in (0, len(shown) - 1) else None)
         ax.axvline(x0, color="#605d57", lw=0.6, ls="--")
         ax.set(xlim=(x0 - 40, x0 + 40), xlabel="x (nm)", ylabel="layer potential U (meV)",
-               title=f"{t}: U_l(x, y = 0), tip-free (blue) and with the tip (orange), V = {s['bias']:+.3f} V")
+               title=f"{t}: layer potentials along the line, V = {s['bias']:+.3f} V")
         ax.legend(fontsize=7, frameon=False)
         # 2. apex bending against tip position: lateral vs local
         ax = axs[row, 1]
         xs = np.array([r["x_tip"] for r in runs]) + x0
         for l, c in ((0, "#d95926"), (1, "#8c6d31")):
             ax.plot(xs, [1e3 * r["dU_apex"][l] for r in runs], "o-", color=c, ms=3, label=f"layer {l + 1}, lateral solve")
-            ax.plot(xs, [1e3 * r["dU_local"][l] for r in runs], "s--", color=c, ms=3, alpha=0.6, label=f"layer {l + 1}, local approximation")
+            if all("dU_uniform" in r for r in runs):
+                ax.plot(xs, [1e3 * r["dU_uniform"][l] for r in runs], "s--", color=c, ms=3, alpha=0.7,
+                        label=f"layer {l + 1}, uniform stack at s(x_tip), same solver")
+            ax.plot(xs, [1e3 * r["dU_local"][l] for r in runs], "^:", color=c, ms=3, alpha=0.5, label=f"layer {l + 1}, engine sweeps (local approximation)")
         ax.axvline(x0, color="#605d57", lw=0.6, ls="--")
         ax.set(xlabel="tip position (nm)", ylabel="tip-induced bending under the apex (meV)",
                title="U_l(x_tip) with the tip minus without")

@@ -353,7 +353,7 @@ def lateral_numbers(tag):
     rows = []
     for r in sorted(runs.values(), key=lambda r: r["x_tip"]):
         a, b = kp.get(f"{r['x_tip']:+.1f}_tip"), kp.get(f"{r['x_tip']:+.1f}_none")
-        rows.append(dict(x=r["x_tip"], s=r["s"], dU=r["dU_apex"], dU_local=r["dU_local"],
+        rows.append(dict(x=r["x_tip"], s=r["s"], dU=r["dU_apex"], dU_local=r["dU_local"], dU_uniform=r.get("dU_uniform"),
                          peak=(a["peak"] + shift) if a else None, peak_ref=(b["peak"] + shift) if b else None,
                          height=a["height"] if a else None, height_ref=b["height"] if b else None))
     return dict(settings=s, sf_top=float(cols[-1, 0]), step_dev=step_dev, fwhm=fwhm, left=left, right=right,
@@ -374,18 +374,27 @@ def lateral_text(states, img_prefix=""):
             faded = r["height"] < 0.15 * h_max or abs(r["peak"] - v["settings"]["E_fb"]) > 0.06
             peaks = ("flat-band peak faded" if faded else
                      f"{1e3 * r['peak_ref']:+.0f} / {1e3 * r['peak']:+.0f} mV ({1e3 * (r['peak'] - r['peak_ref']):+.1f})")
+            ref = r["dU_uniform"] if r["dU_uniform"] is not None else r["dU_local"]
             table.append(f"<tr><td>{t}</td><td>{r['x']:+.0f} nm</td><td>{r['s']:.2f}</td>"
-                         f"<td>{1e3 * r['dU_local'][0]:+.1f} / {1e3 * r['dU'][0]:+.1f} meV</td>"
-                         f"<td>{1e3 * r['dU_local'][1]:+.1f} / {1e3 * r['dU'][1]:+.1f} meV</td><td>{peaks}</td></tr>")
+                         f"<td>{1e3 * ref[0]:+.1f} / {1e3 * r['dU'][0]:+.1f} meV</td>"
+                         f"<td>{1e3 * ref[1]:+.1f} / {1e3 * r['dU'][1]:+.1f} meV</td><td>{peaks}</td></tr>")
     t1, t2 = list(nums)[:2]
     a, b = nums[t1], nums[t2]
     sa, sb = a["settings"], b["settings"]
-    rel = []
+    rel, rel_engine = [], []
     for v in nums.values():
         for r in v["rows"]:
-            if abs(r["dU_local"][0]) > 1e-3:
-                rel.append(r["dU"][0] / r["dU_local"][0] - 1.0)
+            ref = r["dU_uniform"] if r["dU_uniform"] is not None else r["dU_local"]
+            if abs(ref[0]) > 1e-3:
+                rel.append(r["dU"][0] / ref[0] - 1.0)
+            if r["dU_uniform"] is not None and abs(r["dU_uniform"][0]) > 1e-3:
+                rel_engine.append(r["dU_local"][0] / r["dU_uniform"][0] - 1.0)
     rel_txt = f"{100 * min(rel):+.0f} to {100 * max(rel):+.0f} %" if rel else "–"
+    engine_txt = (f" (The engine's local-approximation sweeps differ from the uniform-stack solves of the same code by "
+                  f"{100 * min(rel_engine):+.0f} to {100 * max(rel_engine):+.0f} %: their fixed charge per layer differs by 20 % "
+                  f"in the top layer, and the bending scales with the inverse density of states at E<sub>F</sub>, which on the "
+                  f"flank of the flat band changes by about 20 % per meV of Fermi-level position. That sensitivity is a property "
+                  f"of the rigid-band model, not of the geometry.)" if rel_engine else "")
     kp_rows = [r for v in nums.values() for r in v["rows"] if r["peak"] is not None and r["peak_ref"] is not None
                and r["height"] >= 0.15 * max(q["height"] for q in v["rows"] if q["height"] is not None)
                and abs(r["peak"] - v["settings"]["E_fb"]) <= 0.06]
@@ -412,15 +421,16 @@ at {a['n_positions']} positions across the wall; a solve has about {a['nodes'] /
 columns of the local stack to within {1e3 * max(a['step_dev'], b['step_dev']):.1f} meV: the stack screens laterally
 over a length far below the {sa['ell']:.0f} to {sb['ell']:.0f} nm of the wall, so the local treatment of the far field
 was exact for practical purposes. Second, the tip-induced bending under the apex differs from the local approximation
-by {rel_txt} at the positions studied (table): the field of the tip over the fading flat band does reach into the
-(+⁴−) region, but the gain is a fraction of a few-meV effect. The tip-induced part of the top-layer potential with
+by {rel_txt} at the positions studied (table; the reference is the uniform stack at s(x_tip) solved with the same
+code): the field of the tip over the fading flat band does reach into the (+⁴−) region, but the gain is a fraction of a
+few-meV effect.{engine_txt} The tip-induced part of the top-layer potential with
 the tip at the wall centre has a full width at half maximum of {a['fwhm']:.0f} nm ({t1}; {a['left']:.0f} nm towards
 (+⁴−), {a['right']:.0f} nm towards (+⁵)) against the 12.5 nm of the Gaussian bump used above. Third, fed into the
 k·p wall model in place of the Gaussian bump, {worst_txt}. The conclusion of the local approximation stands: the
 self-consistent tip-induced band bending at the flat-band bias is a few meV also when the lateral problem is solved,
 and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
 <div class="tablewrap"><table>
-<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: local / lateral</th><th>layer 2: local / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
+<tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: uniform / lateral</th><th>layer 2: uniform / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
 {''.join(table)}
 </table></div>
 <figure><img src="{img_prefix}stacking_wall_lateral.png" alt="lateral solve: layer potentials, apex bending and k.p peak against the tip position">
@@ -548,7 +558,8 @@ def reading_lateral(states):
         return ("What the local approximation cannot hold is the tip's field reaching across the wall into the (+⁴−) "
                 "region, where screening is weak, while the tip sits over the fading flat band; that lateral problem, "
                 "a Poisson solution with the wall in it, is the natural next step and is outside the axisymmetric engine. ")
-    rel = max(abs(r["dU"][0] / r["dU_local"][0] - 1.0) for v in nums.values() for r in v["rows"] if abs(r["dU_local"][0]) > 1e-3)
+    rel = max(abs(r["dU"][0] / (r["dU_uniform"] or r["dU_local"])[0] - 1.0) for v in nums.values() for r in v["rows"]
+              if abs((r["dU_uniform"] or r["dU_local"])[0]) > 1e-3)
     return (f"The tip's field reaching across the wall into the weakly screening (+⁴−) region was then checked with the "
             f"three-dimensional solve: it changes the bending under the apex by at most {100 * rel:.0f} %, so the lateral "
             "problem does not rescue the tip-gating explanation either. ")

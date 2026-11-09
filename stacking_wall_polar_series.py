@@ -40,7 +40,8 @@ PSETS = {
     "eps15": dict(work="series", suffix="", s=[0.15, 0.30, 0.45, 0.60, 0.0, 1.0, 0.75, 0.90],
                   source=(f"stacking_wall_epsfit_{TAG}.json", ("polarized", "best")),
                   label="polarized stack, \u03b5 = 15"),
-    "eps26_peaks": dict(work="series_eps26_peaks", suffix="_eps26_peaks", s=[0.2, 0.4, 0.6, 0.8, 0.0, 1.0],
+    "eps26_peaks": dict(work="series_eps26_peaks", suffix="_eps26_peaks",
+                        s=[0.0, 1.0, 0.50, 0.33, 0.67, 0.41, 0.59, 0.25, 0.75, 0.19, 0.14, 0.08, 0.88],
                         source=(f"stacking_wall_eps26_{TAG}.json", ("best",)),
                         label="\u03b5 = 2.6, best peak fit"),
     # s every ~1 nm within 3 nm of the wall centre of line 940 (l = 5.6 nm), wider beyond; the centre first

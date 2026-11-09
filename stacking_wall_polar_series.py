@@ -10,10 +10,16 @@ charge per layer (that of the doped (+5) stack), the same n_sub and the same tip
 (+5) stack, s = 1 the (+4-) stack.  The top-layer dI/dV of every stack is placed along the
 fitted profile s(x) of line 940 next to the measurement.
 
-    python stacking_wall_polar_series.py run WORKER          # 4 workers share a queue (lock files)
-    python stacking_wall_polar_series.py collect --sm4 PATH  # merge, maps, figure
+Parameter sets (--set): eps15, the best polarized stack of the eps x Delta E_F scan (default); eps26_peaks and
+eps26_fb, the eps = 2.6 refit (stacking_wall_epsfit/fixeps.py, examples/stacking_wall_eps26_940.json): its best
+cell by the peak positions and its best cell with the flat band within 10 mV.
 
-Writes examples/stacking_wall_polar_940.json, examples/stacking_wall_polar_map_940.png/.npz.
+    python stacking_wall_polar_series.py run WORKER [--set S]           # 4 workers share a queue (lock files)
+    python stacking_wall_polar_series.py queue WORKER --sets S1 S2      # wall stacks split in bias halves, both sets
+    python stacking_wall_polar_series.py collect --sm4 PATH [--set S]   # merge, maps, figure
+
+Writes examples/stacking_wall_polar[_SET]_940.json, examples/stacking_wall_polar[_SET]_map_940.png/.npz and
+examples/stacking_wall_polar[_SET]_spectra_940.png (no suffix for eps15).
 """
 
 import argparse
@@ -29,9 +35,34 @@ from stacking_wall_tibb_map import simulated_map
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 EXAMPLES = os.path.join(HERE, "examples")
-WORK = os.path.join(HERE, "stacking_wall_epsfit", "series")
 TAG = "940"
-S_ORDER = [0.15, 0.30, 0.45, 0.60, 0.0, 1.0, 0.75, 0.90]          # slow wall stacks first
+PSETS = {
+    "eps15": dict(work="series", suffix="", s=[0.15, 0.30, 0.45, 0.60, 0.0, 1.0, 0.75, 0.90],
+                  source=(f"stacking_wall_epsfit_{TAG}.json", ("polarized", "best")),
+                  label="polarized stack, \u03b5 = 15"),
+    "eps26_peaks": dict(work="series_eps26_peaks", suffix="_eps26_peaks", s=[0.2, 0.4, 0.6, 0.8, 0.0, 1.0],
+                        source=(f"stacking_wall_eps26_{TAG}.json", ("best",)),
+                        label="\u03b5 = 2.6, best peak fit"),
+    # s every ~1 nm within 3 nm of the wall centre of line 940 (l = 5.6 nm), wider beyond; the centre first
+    "eps26_fb": dict(work="series_eps26_fb", suffix="_eps26_fb",
+                     s=[0.0, 1.0, 0.50, 0.33, 0.67, 0.41, 0.59, 0.25, 0.75, 0.19, 0.14, 0.08, 0.88],
+                     source=(f"stacking_wall_eps26_{TAG}.json", ("flat_band_in_place",)),
+                     label="\u03b5 = 2.6, best flat-band fit"),
+}
+PSET = "eps15"
+WORK = os.path.join(HERE, "stacking_wall_epsfit", PSETS[PSET]["work"])
+S_ORDER = PSETS[PSET]["s"]                                         # slow wall stacks first
+
+
+def use(name):
+    """Switch the module to parameter set ``name``."""
+    global PSET, WORK, S_ORDER
+    PSET, WORK, S_ORDER = name, os.path.join(HERE, "stacking_wall_epsfit", PSETS[name]["work"]), PSETS[name]["s"]
+    os.makedirs(WORK, exist_ok=True)
+
+
+def out_name(kind, ext):
+    return os.path.join(EXAMPLES, f"stacking_wall_polar{PSETS[PSET]['suffix']}{kind}_{TAG}.{ext}")
 # 50 mV steps, 25 mV within 75 mV of zero (the spectra agree with a full 25 mV sweep to 0.2 % of the peak and
 # give the same feature positions; checked on the (+5) stack)
 BIASES = np.unique(np.round(np.concatenate([np.arange(-0.45, 0.45 + 1e-9, 0.05), [-0.075, -0.025, 0.025, 0.075]]), 4))
@@ -42,8 +73,18 @@ WALL_KW = {"h_fine": 0.012, "h_coarse": 0.3}
 
 
 def best_params():
-    s = json.load(open(os.path.join(EXAMPLES, f"stacking_wall_epsfit_{TAG}.json")))["polarized"]["best"]
-    return dict(eps=s["eps"], dEF=s["dEF"], nsub=s["nsub"], cpot=s["cpot"])
+    fname, path = PSETS[PSET]["source"]
+    src = json.load(open(os.path.join(EXAMPLES, fname)))
+    s = src
+    for k in path:
+        s = s[k]
+    p = dict(eps=s.get("eps", src.get("eps")), dEF=s["dEF"], nsub=s["nsub"], cpot=s.get("cpot"))
+    if p["cpot"] is None:                      # the tip that leaves the (+5) bands flat at zero bias: CPot = U_1 far
+        from bandbending import Simulation
+        r = Simulation(sample(swt.SEQ_RG, "RG", p["eps"], p["nsub"], fermi_level=p["dEF"]), None,
+                       temperature=9.0).solve(0.0, 0.0)
+        p["cpot"] = float(np.asarray(r.multilayers["RG"].U)[0][0])
+    return p
 
 
 def sample(stacking, name, eps, nsub, *, doping=None, fermi_level=None):
@@ -146,6 +187,33 @@ def run(worker):
     print(f"worker {worker} done", flush=True)
 
 
+def queue(worker, sets):
+    """Work through the stacks of several parameter sets: every wall stack as two bias halves
+    (merged by whichever half finishes last), the end stacks whole; one lock file per job."""
+    jobs = []
+    for n in sets:                                   # in the order of the set's s list
+        for s in PSETS[n]["s"]:
+            jobs += [(n, s, "neg"), (n, s, "pos")] if 0.0 < s < 1.0 else [(n, s, None)]
+    for n, s, half in jobs:
+        use(n)
+        if os.path.exists(os.path.join(WORK, key(s) + ".json")):
+            continue
+        lock = os.path.join(WORK, key(s) + (f"_{half}" if half else "") + ".lock")
+        try:
+            fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            continue
+        os.write(fd, str(os.getpid()).encode())
+        os.close(fd)
+        print(f"worker {worker}: {n} s = {s:.2f} {half or 'whole'}", flush=True)
+        if half:
+            run_half(s, half)
+        else:
+            p = best_params()
+            run_one(s, p, layer_doping(p))
+    print(f"worker {worker} done", flush=True)
+
+
 # ---------------------------------------------------------------------------
 # collect: merge, map, figure
 # ---------------------------------------------------------------------------
@@ -179,7 +247,7 @@ def collect(sm4):
     dist, bias_e, exp_map = exp["dist"], exp["bias"], exp["didv"]
     sim, s_x = simulated_map(s_vals, D, dist, fit)
     old = np.load(os.path.join(EXAMPLES, f"stacking_wall_tibb_map_{TAG}.npz"))
-    np.savez_compressed(os.path.join(EXAMPLES, f"stacking_wall_polar_map_{TAG}.npz"), dist=dist, bias=FINE,
+    np.savez_compressed(out_name("_map", "npz"), dist=dist, bias=FINE,
                         didv=sim.astype(np.float32), s=s_x, s_values=s_vals)
 
     # flat-band peak along the line: measured, polarized model, earlier uniformly doped model
@@ -202,7 +270,7 @@ def collect(sm4):
     lo, hi = -0.45, 0.45
     fig, axs = plt.subplots(2, 2, figsize=(12.5, 8.6))
     for col, (E, Z, title) in enumerate(((bias_e, exp_map * 1e3, f"experiment, line spectrum {TAG}"),
-                                         (FINE, sim, "model: polarized stack, local approximation"))):
+                                         (FINE, sim, f"model: {PSETS[PSET]['label']}, local approximation"))):
         sel = (E >= lo) & (E <= hi)
         v = np.nanpercentile(Z[sel], [1, 99.5])
         im = axs[0, col].imshow(Z[sel], aspect="auto", origin="lower", cmap="plasma",
@@ -224,7 +292,7 @@ def collect(sm4):
                  f"s(x) from the fitted profile (x0 = {fit['x0']:.1f} nm, l = {fit['ell']:.1f} nm), s = "
                  f"{', '.join(f'{s:g}' for s in s_vals)}", fontsize=8.5)
     fig.tight_layout()
-    fig.savefig(os.path.join(EXAMPLES, f"stacking_wall_polar_map_{TAG}.png"), dpi=160)
+    fig.savefig(out_name("_map", "png"), dpi=160)
     plt.close(fig)
 
     # spectra at the s values and the flat-band peak along the line
@@ -237,14 +305,22 @@ def collect(sm4):
     ax.set_xlim(lo, hi)
     ax.set_xlabel("sample bias (V)")
     ax.set_ylabel("top-layer dI/dV under the tip (offset)")
-    ax.set_title("polarized stack at each s, same tip", fontsize=10, loc="left")
+    ax.set_title(f"{PSETS[PSET]['label']}: each s, same tip", fontsize=10, loc="left")
     ax.legend(fontsize=7, frameon=False, ncol=2, loc="upper left")
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax = axs[1]
     ax.plot(dist, 1e3 * pk_meas, color=INK, lw=1.6, label="measured")
-    ax.plot(dist, 1e3 * pk_pol, color="#2a78d6", lw=1.6, label="polarized stack (this section)")
-    ax.plot(dist, 1e3 * pk_old, color="#eb6834", lw=1.2, ls=(0, (3, 2)), label="uniformly doped stack (above)")
+    ax.plot(dist, 1e3 * pk_pol, color="#2a78d6", lw=1.6, label=PSETS[PSET]["label"])
+    ax.plot(dist, 1e3 * pk_old, color="#eb6834", lw=1.2, ls=(0, (3, 2)), label="uniformly doped stack, \u03b5 = 2.6")
+    for other, color in (("eps15", "#1baf7a"), ("eps26_fb", "#6250d6"), ("eps26_peaks", "#e87ba4")):
+        if other == PSET:
+            continue
+        f_other = os.path.join(EXAMPLES, f"stacking_wall_polar{PSETS[other]['suffix']}_{TAG}.json")
+        if os.path.exists(f_other):
+            tr = json.load(open(f_other))["track"]
+            ax.plot(np.asarray(tr["dist"]), 1e3 * np.asarray(tr["polarized"], dtype=float), color=color, lw=1.1,
+                    ls=(0, (1, 1.5)), label=PSETS[other]["label"])
     ax.axvline(fit["x0"], color=MUTED, lw=0.8, ls="--")
     ax.grid(axis="y", color=GRID, lw=0.8)
     ax.set_xlabel("distance (nm)")
@@ -254,7 +330,7 @@ def collect(sm4):
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     fig.tight_layout()
-    fig.savefig(os.path.join(EXAMPLES, f"stacking_wall_polar_spectra_{TAG}.png"), dpi=160)
+    fig.savefig(out_name("_spectra", "png"), dpi=160)
     plt.close(fig)
 
     # lowest edge above E_F (steepest rise between +20 and +260 mV) along the line
@@ -293,7 +369,7 @@ def collect(sm4):
         out[f"far_{k}"] = float(np.nanmean(pk[far]))
         out[f"extreme_{k}"] = float(pk[ok][np.argmax(np.abs(pk[ok] - np.nanmean(pk[far])))]) if ok.any() else None
         out[f"extreme_dist_{k}"] = float(dist[ok][np.argmax(np.abs(pk[ok] - np.nanmean(pk[far])))]) if ok.any() else None
-    json.dump(out, open(os.path.join(EXAMPLES, f"stacking_wall_polar_{TAG}.json"), "w"))
+    json.dump(out, open(out_name("", "json"), "w"))
     print(f"wrote maps; (+5) residual {res:.3f}; flat-band peak per s (mV): "
           f"{ {k: round(1e3 * v, 1) for k, v in peaks_s.items()} }")
     for k in ("measured", "polarized", "uniform"):
@@ -302,14 +378,19 @@ def collect(sm4):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("cmd", choices=["run", "half", "collect"])
+    ap.add_argument("cmd", choices=["run", "half", "queue", "collect"])
+    ap.add_argument("--set", default="eps15", choices=sorted(PSETS))
+    ap.add_argument("--sets", nargs="+", default=None)
     ap.add_argument("worker", nargs="?", type=int, default=0)
     ap.add_argument("--s", type=float, default=None)
     ap.add_argument("--sign", choices=["neg", "pos"], default=None)
     ap.add_argument("--sm4", default=None)
     args = ap.parse_args()
+    use(args.set)
     if args.cmd == "run":
         run(args.worker)
+    elif args.cmd == "queue":
+        queue(args.worker, args.sets or [args.set])
     elif args.cmd == "half":
         run_half(args.s, args.sign)
     else:

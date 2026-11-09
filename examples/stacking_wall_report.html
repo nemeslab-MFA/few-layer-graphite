@@ -402,6 +402,42 @@ in the local approximation (right).</figcaption></figure>
 along the line while it is visible, measured, polarized stack and the uniformly doped stack of the series above.</figcaption></figure>
 </div>
 
+<h3>Refit at ε = 2.6: starting doping and SiO₂ charge</h3>
+<p>The polarized fit above needs an interlayer permittivity of 10 to 25, far above the 2.6 of graphite's σ bands; values
+above about 3 stand for screening the model does not contain. The large ε also suppresses the bend at the wall: in the
+local approximation most of the bend is the charge balance of the wall stack, a field between its layers whose
+potential steps scale as 1/ε (tip-free, from s = 0 to 0.75 the top layer of the uniformly doped stack moves by about
+−44 meV at ε = 2.6 and −19 meV at ε = 15, that of the polarized stack by −68 and −13 meV). ε was therefore fixed at 2.6
+and the starting doping ΔE<sub>F</sub> and the SiO₂ charge n<sub>sub</sub> fitted under the same tip, set to bend
+nothing at zero bias (<code>stacking_wall_epsfit/fixeps.py</code>). n<sub>sub</sub> enters through the carrier
+density it leaves in the stack: for each ΔE<sub>F</sub> the neutral point is found by bisection, and n<sub>sub</sub>
+then leaves 1.5 to 150×10¹⁰ holes per cm² (ΔE<sub>F</sub> =
+40 to 130 meV, 37 sweeps). Cells whose lower side-band "peak" is a ripple
+(prominence below half the measured 0.041 of the flat-band peak) or where a feature is missing are
+not counted.</p>
+<p>The holes screen the tip. With up to 10¹¹ holes the tip pushes the lower side band to −310 to
+−290 mV; with 1.5×10¹² it stays near its tip-free position, −222 to −202 mV
+(measured −256 mV). But the holes empty part of the top flat band and pin it near E<sub>F</sub>: from
+6×10¹¹ holes on, the flat-band peak sits at −18 to −10 mV against the measured
+−32 mV. No cell gets both. The best match of the five peak positions is 19.2 mV
+(ΔE<sub>F</sub> = 40 meV, n<sub>sub</sub> = −0.849×10¹³ cm⁻², 150×10¹⁰
+holes), with the flat band 22 mV too shallow and the whole curve far off
+(shape residual 0.58). With the flat band within 10 mV of the measured one the best is
+22.1 mV (ΔE<sub>F</sub> = 60 meV, n<sub>sub</sub> = −0.878×10¹³ cm⁻²,
+10×10¹⁰ holes), which is also the best overall shape at ε = 2.6 (residual 0.34); its
+lower side band is 41 mV too deep, as at ε = 15. This flat-band fit is
+3.5 mV worse than the ε = 15 fit by the peak positions; it is the
+parameter set carried across the wall below.</p>
+<div class="tablewrap"><table>
+<tr><th>feature</th><th>measured</th><th>best by the peak positions</th><th>best with the flat band within 10 mV</th><th>ε = 15 (polarized fit above)</th></tr>
+<tr><td>lower side-band peak</td><td>−256 mV</td><td>−222 mV</td><td>−298 mV</td><td>−292 mV</td></tr><tr><td>flat-band peak</td><td>−32 mV</td><td>−10 mV</td><td>−25 mV</td><td>−30 mV</td></tr><tr><td>bottom-band onset</td><td>+69 mV</td><td>+75 mV</td><td>+55 mV</td><td>+58 mV</td></tr><tr><td>upper side-band edge 1</td><td>+272 mV</td><td>+262 mV</td><td>+250 mV</td><td>+255 mV</td></tr><tr><td>upper side-band edge 2</td><td>+370 mV</td><td>+378 mV</td><td>+365 mV</td><td>+372 mV</td></tr>
+<tr><td>rms of the five</td><td></td><td>19.2 mV</td><td>22.1 mV</td><td>18.6 mV</td></tr>
+</table></div>
+<figure><img src="stacking_wall_eps26_940.png" alt="eps = 2.6 refit of the (+5) spectrum of 940">
+<figcaption>(a) Feature rms under the tip at ε = 2.6 over the starting doping and the hole density left by
+n<sub>sub</sub>; frames: the best cell (orange) and the best with the flat band within 10 mV (blue). (b) The two cells
+under the tip against the measured (+⁵) spectrum of 940 (dashed: the best cell without the tip).</figcaption></figure>
+
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

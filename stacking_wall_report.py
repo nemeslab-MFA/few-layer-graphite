@@ -518,9 +518,76 @@ best cell with the flat band in place. Dots: the fitted features.</figcaption></
 """
 
 
-def polar_series_numbers():
-    """Numbers of the polarized-stack line spectrum (stacking_wall_polar_series.py), or None."""
-    path = os.path.join(EXAMPLES, "stacking_wall_polar_940.json")
+def eps26_fit_text(img_prefix=""):
+    """Section: refit of the (+5) spectrum of 940 at eps = 2.6 with Delta E_F and n_sub free
+    (stacking_wall_epsfit/fixeps.py, analyze_fixeps.py; examples/stacking_wall_eps26_940.json)."""
+    path = os.path.join(EXAMPLES, "stacking_wall_eps26_940.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path) as fh:
+        s = json.load(fh)
+    p15 = os.path.join(EXAMPLES, "stacking_wall_epsfit_940.json")
+    b15 = json.load(open(p15))["polarized"]["best"] if os.path.exists(p15) else None
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    sci = lambda v: f"{v / 1e13:.3f}".replace("-", "−")  # noqa: E731
+    m, b, fb = s["measured"], s["best"], s["flat_band_in_place"]
+    valid = [c for c in s["cells"] if c["valid"]]
+    few = [c["features"][0] for c in valid if c["holes"] <= 1.01e11]
+    many = [c["features"][0] for c in valid if c["holes"] >= 1.49e12]
+    fb_many = [c["features"][1] for c in valid if c["holes"] >= 5.9e11]
+    dEFs = sorted({c["dEF"] for c in s["cells"]})
+    holes = sorted({c["holes"] for c in s["cells"]})
+    hole_of = lambda r: next(c["holes"] for c in s["cells"] if abs(c["nsub"] - r["nsub"]) < 1e6)   # noqa: E731
+    names = ["lower side-band peak", "flat-band peak", "bottom-band onset", "upper side-band edge 1", "upper side-band edge 2"]
+    cols = [("best by the peak positions", b["features"]), ("best with the flat band within 10 mV", fb["features"])]
+    if b15:
+        cols.append(("ε = 15 (polarized fit above)", b15["features"]))
+    head = "".join(f"<th>{c[0]}</th>" for c in cols)
+    body = "".join(f"<tr><td>{n}</td><td>{mv(m[k])} mV</td>" + "".join(f"<td>{mv(c[1][k])} mV</td>" for c in cols) + "</tr>"
+                   for k, n in enumerate(names))
+    rms_row = "<tr><td>rms of the five</td><td></td>" + "".join(
+        f"<td>{1e3 * r:.1f} mV</td>" for r in [b["rms"], fb["rms"]] + ([b15["rms"]] if b15 else [])) + "</tr>"
+    return f"""<h3>Refit at ε = 2.6: starting doping and SiO₂ charge</h3>
+<p>The polarized fit above needs an interlayer permittivity of 10 to 25, far above the 2.6 of graphite's σ bands; values
+above about 3 stand for screening the model does not contain. The large ε also suppresses the bend at the wall: in the
+local approximation most of the bend is the charge balance of the wall stack, a field between its layers whose
+potential steps scale as 1/ε (tip-free, from s = 0 to 0.75 the top layer of the uniformly doped stack moves by about
+−44 meV at ε = 2.6 and −19 meV at ε = 15, that of the polarized stack by −68 and −13 meV). ε was therefore fixed at 2.6
+and the starting doping ΔE<sub>F</sub> and the SiO₂ charge n<sub>sub</sub> fitted under the same tip, set to bend
+nothing at zero bias (<code>stacking_wall_epsfit/fixeps.py</code>). n<sub>sub</sub> enters through the carrier
+density it leaves in the stack: for each ΔE<sub>F</sub> the neutral point is found by bisection, and n<sub>sub</sub>
+then leaves {holes[0] / 1e10:g} to {holes[-1] / 1e10:g}×10¹⁰ holes per cm² (ΔE<sub>F</sub> =
+{1e3 * dEFs[0]:.0f} to {1e3 * dEFs[-1]:.0f} meV, {len(s['cells'])} sweeps). Cells whose lower side-band "peak" is a ripple
+(prominence below half the measured {s['prominence_measured']:.3f} of the flat-band peak) or where a feature is missing are
+not counted.</p>
+<p>The holes screen the tip. With up to 10¹¹ holes the tip pushes the lower side band to {mv(min(few))} to
+{mv(max(few))} mV; with 1.5×10¹² it stays near its tip-free position, {mv(min(many))} to {mv(max(many))} mV
+(measured {mv(m[0])} mV). But the holes empty part of the top flat band and pin it near E<sub>F</sub>: from
+6×10¹¹ holes on, the flat-band peak sits at {mv(min(fb_many))} to {mv(max(fb_many))} mV against the measured
+{mv(m[1])} mV. No cell gets both. The best match of the five peak positions is {1e3 * b['rms']:.1f} mV
+(ΔE<sub>F</sub> = {1e3 * b['dEF']:.0f} meV, n<sub>sub</sub> = {sci(b['nsub'])}×10¹³ cm⁻², {hole_of(b) / 1e10:g}×10¹⁰
+holes), with the flat band {abs(1e3 * (b['features'][1] - m[1])):.0f} mV too shallow and the whole curve far off
+(shape residual {b['residual']:.2f}). With the flat band within 10 mV of the measured one the best is
+{1e3 * fb['rms']:.1f} mV (ΔE<sub>F</sub> = {1e3 * fb['dEF']:.0f} meV, n<sub>sub</sub> = {sci(fb['nsub'])}×10¹³ cm⁻²,
+{hole_of(fb) / 1e10:g}×10¹⁰ holes), which is also the best overall shape at ε = 2.6 (residual {fb['residual']:.2f}); its
+lower side band is {abs(1e3 * (fb['features'][0] - m[0])):.0f} mV too deep, as at ε = 15. This flat-band fit is
+{1e3 * (fb['rms'] - b15['rms']) if b15 else 0:.1f} mV worse than the ε = 15 fit by the peak positions; it is the
+parameter set carried across the wall below.</p>
+<div class="tablewrap"><table>
+<tr><th>feature</th><th>measured</th>{head}</tr>
+{body}
+{rms_row}
+</table></div>
+<figure><img src="{img_prefix}stacking_wall_eps26_940.png" alt="eps = 2.6 refit of the (+5) spectrum of 940">
+<figcaption>(a) Feature rms under the tip at ε = 2.6 over the starting doping and the hole density left by
+n<sub>sub</sub>; frames: the best cell (orange) and the best with the flat band within 10 mV (blue). (b) The two cells
+under the tip against the measured (+⁵) spectrum of 940 (dashed: the best cell without the tip).</figcaption></figure>
+"""
+
+
+def polar_series_numbers(suffix=""):
+    """Numbers of a polarized-stack line spectrum (stacking_wall_polar_series.py), or None."""
+    path = os.path.join(EXAMPLES, f"stacking_wall_polar{suffix}_940.json")
     if not os.path.exists(path):
         return None
     with open(path) as fh:
@@ -785,6 +852,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 {lateral_text(states, img_prefix)}
 {epsfit_text(img_prefix)}
 {polar_series_text(img_prefix)}
+{eps26_fit_text(img_prefix)}
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

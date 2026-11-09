@@ -169,7 +169,8 @@ def hybrid_numbers(tag, state):
     import glob
     s = state["settings"]
     E_fb, x_wall = s["E_fb_measured"], s["x_wall"]
-    out = {"meas": _peak(np.asarray(state["measured"]["bias"]), np.asarray(state["measured"]["wall"]), E_fb, 0.09)}
+    out = {"meas": _peak(np.asarray(state["measured"]["bias"]), np.asarray(state["measured"]["wall"]), E_fb, 0.09),
+           "E_fb": E_fb}
     loc_path = os.path.join(EXAMPLES, f"stacking_wall_tibb_map_{tag}.npz")
     hyb_path = os.path.join(EXAMPLES, f"stacking_wall_hybrid_{tag}.npz")
     fit_path = os.path.join(EXAMPLES, f"stacking_wall_{tag}.json")
@@ -177,6 +178,8 @@ def hybrid_numbers(tag, state):
         with np.load(loc_path) as f:
             j = int(np.argmin(np.abs(f["dist"] - x_wall)))
             out["local"] = _peak(f["bias"], f["didv"][:, j], E_fb, 0.09)
+            far_j = f["dist"] > f["dist"].max() - 10.0
+            out["local_far"] = _peak(f["bias"], f["didv"][:, far_j].mean(axis=1), E_fb, 0.09)
     if os.path.exists(hyb_path) and os.path.exists(fit_path):
         with open(fit_path) as fh:
             x0 = json.load(fh)["fit"]["x0"]
@@ -221,12 +224,23 @@ chosen tip positions on request). The fringes of the (+⁴−) side return, toge
 stacks.</p>
 <p>At the position of the measured wall spectrum the flat-band peak sits at {mv(a['meas'])} mV measured,
 {mv(a['local'])} mV in the local approximation and {mv(a['hybrid'])} mV in the hybrid for {t1}; {mv(b['meas'])},
-{mv(b['local'])} and {mv(b['hybrid'])} mV for {t2}. The hybrid bends less than the local approximation although
-it uses the same potentials: the top-layer potential of the stacks moves from {mv(a['V1_0'])} to
-{mv(a['V1_075'])} meV ({t1}) and from {mv(b['V1_0'])} to {mv(b['V1_075'])} meV ({t2}) between s = 0 and 0.75,
-and in the γ0/γ1 model the top-layer flat band is a pure layer-1 state that takes the whole shift, while in the
-k·p model the flat-band state near the wall spreads into the layers whose potentials barely move and follows only
-part of it.</p>
+{mv(b['local'])} and {mv(b['hybrid'])} mV for {t2}. The top-layer potential of the stacks moves from
+{mv(a['V1_0'])} to {mv(a['V1_075'])} meV ({t1}) and from {mv(b['V1_0'])} to {mv(b['V1_075'])} meV ({t2}) between
+s = 0 and 0.75, and the k·p flat band near the wall follows it. Measured from the far (+⁵) peak of each
+description, the bend at the wall is {mv(a['hybrid'] - a['E_fb'])} mV in the hybrid against
+{mv(a['local'] - a['local_far'])} mV in the local approximation and {mv(a['meas'] - a['E_fb'])} mV measured ({t1}),
+{mv(b['hybrid'] - b['E_fb'])}, {mv(b['local'] - b['local_far'])} and {mv(b['meas'] - b['E_fb'])} mV ({t2}). The two
+descriptions of the wall agree to within {abs(1e3 * (a['hybrid'] - a['E_fb'] - a['local'] + a['local_far'])):.0f} mV
+({t1}) and {abs(1e3 * (b['hybrid'] - b['E_fb'] - b['local'] + b['local_far'])):.0f} mV ({t2}): the k·p wall, with its
+fringes and remote hoppings, changes little of what the far-field potentials of the stacks do to the flat band, and
+both fall short of the measured bend, by a third in {t1} and by more than half in {t2}.</p>
+<p><b>Correction (2026-11-09).</b> The first version of this section passed the engine's layer potentials to the
+k·p model in the wrong order: the engine numbers the layers from the top, the k·p model from the bottom, so the k·p
+top layer carried the potential of the bottom layer, which barely moves across the wall. The hybrid then bent by
++10 mV ({t1}) and 0 mV ({t2}) at the wall, and the shortfall against the local approximation was put down to the
+k·p flat-band state spreading into the lower layers. That explanation was wrong. The maps, the tip-induced bump
+and the k·p spectra of the lateral solve below are recomputed with the order fixed
+(<code>stacking_wall.ldos_wall</code> now states the order; a regression test checks it).</p>
 <div class="figs">
 <figure><img src="{img_prefix}stacking_wall_hybrid_{t1}.png" alt="hybrid map, {t1}">
 <figcaption>Line spectrum {t1}: measured dI/dV(V, x), the local approximation and the hybrid, with their bias

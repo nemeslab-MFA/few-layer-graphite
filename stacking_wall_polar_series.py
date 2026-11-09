@@ -306,7 +306,7 @@ def collect(sm4):
     ax.set_xlabel("sample bias (V)")
     ax.set_ylabel("top-layer dI/dV under the tip (offset)")
     ax.set_title(f"{PSETS[PSET]['label']}: each s, same tip", fontsize=10, loc="left")
-    ax.legend(fontsize=7, frameon=False, ncol=2, loc="upper left")
+    ax.legend(fontsize=7, frameon=False, ncol=1, loc="upper left", bbox_to_anchor=(1.0, 1.0))
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
     ax = axs[1]
@@ -355,8 +355,27 @@ def collect(sm4):
     bg = (FINE > -0.2) & (FINE < -0.12)
     heights = {f"{s:.2f}": float((np.asarray(runs[s]["didv"])[win].max() - np.median(np.asarray(runs[s]["didv"])[bg]))
                                  / y0[win].max()) for s in s_vals}
+    # the flat-band peak of every stack without the tip (same spectroscopy, layer potentials of the column)
+    from bandbending import Simulation
+    from bandbending.results.spectroscopy import tunneling_spectrum
+    p_set = best_params()
+    dop = layer_doping(p_set)
+    tipfree = {}
+    for s in s_vals:
+        if s == 0.0:
+            nm, sim0 = "RG", Simulation(sample(swt.SEQ_RG, "RG", p_set["eps"], p_set["nsub"], doping=dop), None, temperature=9.0)
+        elif s == 1.0:
+            nm, sim0 = "SF", Simulation(sample(swt.SEQ_SF, "SF", p_set["eps"], p_set["nsub"], doping=dop), None, temperature=9.0)
+        else:
+            nm = swt.WALL_NAME
+            sim0 = swt.WallSimulation(sample(swt.SEQ_RG, nm, p_set["eps"], p_set["nsub"], doping=dop), None, 9.0, wall_s=s,
+                                      n_phi=6, wall_kw=WALL_KW)
+        q = sim0.solve(0.0, 0.0).multilayers[nm]
+        Uc = np.asarray(q.U)[0]
+        yc = tunneling_spectrum(q.tb, q.mu0, FINE, np.tile(Uc, (FINE.size, 1)), np.zeros((FINE.size, Uc.size)), **SPEC).didv
+        tipfree[f"{s:.2f}"] = fb_peak(FINE, yc, E_fb)[0]
     far = dist > dist.max() - 15
-    out = dict(params=runs[0.0]["params"], s_values=s_vals.tolist(), scale=a, residual_rg=res, fine_bias=FINE.tolist(),
+    out = dict(tipfree_peaks=tipfree,params=runs[0.0]["params"], s_values=s_vals.tolist(), scale=a, residual_rg=res, fine_bias=FINE.tolist(),
                peaks_s=peaks_s, runs={key(s): {k: runs[s][k] for k in ("s", "stacking", "seconds", "failures", "didv", "sweep")}
                                       for s in s_vals},
                track=dict(dist=dist.tolist(), measured=pk_meas.tolist(), polarized=pk_pol.tolist(), uniform=pk_old.tolist()),

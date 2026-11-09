@@ -13,6 +13,7 @@ then expected next to the page under their file names.
 """
 
 import argparse
+import glob
 import html
 import json
 import os
@@ -585,6 +586,88 @@ under the tip against the measured (+⁵) spectrum of 940 (dashed: the best cell
 """
 
 
+def eps26_series_text(img_prefix=""):
+    """Section: line spectrum 940 with the eps = 2.6 flat-band fit, local approximation
+    (stacking_wall_polar_series.py --set eps26_fb)."""
+    n = polar_series_numbers("_eps26_fb")
+    if n is None:
+        return ""
+    st, rows = n["state"], n["rows"]
+    p = st["params"]
+    fit = st["fit"]
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    mv1 = lambda v: ("0.0" if abs(v) < 5e-5 else f"{1e3 * v:+.1f}".replace("-", "−"))  # noqa: E731
+    dx = lambda s: (0.0 if abs(s - 0.5) < 1e-9 else fit["ell"] * np.arctanh(1.0 - 2.0 * s)) if 0.0 < s < 1.0 else None  # noqa: E731
+    walls = [r["s"] for r in rows if 0.0 < r["s"] < 1.0]
+    table = "".join(
+        f"<tr><td>{r['s']:g}</td><td>{'' if dx(r['s']) is None else ('0 nm' if dx(r['s']) == 0.0 else f'{dx(r[chr(115)]):+.1f} nm'.replace('-', '−'))}</td>"
+        f"<td>{mv1(r['U1'])} meV</td>"
+        + ("<td colspan=\"3\">flat band faded</td></tr>" if r["faded"] else
+           f"<td>{mv1(r['peak'])} mV</td><td>{100 * r['height'] / rows[0]['height']:.0f} %</td><td>{mv1(r['bend_pk'])} meV</td></tr>")
+        for r in rows)
+    alive = [r for r in rows if not r["faded"]]
+    last = max(alive, key=lambda r: r["s"])
+    r0, r1 = rows[0], rows[-1]
+    bend = {k: st[f"extreme_{k}"] - st[f"far_{k}"] for k in ("measured", "polarized")}
+    dist = np.asarray(st["track"]["dist"])
+    e = {k: np.asarray(st["edge"][k]) for k in ("measured", "polarized")}
+    far_l = dist < 10.0
+    j5 = int(np.argmin(np.abs(dist - (fit["x0"] - 5.0))))
+    j2 = int(np.argmin(np.abs(dist - (fit["x0"] - 2.0))))
+    holes = -json.load(open(os.path.join(EXAMPLES, "stacking_wall_eps26_940.json")))["flat_band_in_place"]["carriers"]
+    tf = st.get("tipfree_peaks", {})
+    # the uniformly doped stack of the first calculation: mean potential of the top three layers, s = 0 and 0.75
+    main = json.load(open(os.path.join(EXAMPLES, "stacking_wall_tibb_940.json")))
+    u_runs = {0.0: main["scan"][f"{main['best_cpot']:+.3f}"]}
+    for f in [os.path.join(EXAMPLES, "stacking_wall_tibb_940.json")] + sorted(glob.glob(os.path.join(EXAMPLES, "stacking_wall_tibb_940_s*.json"))):
+        for k, r in json.load(open(f)).get("runs", {}).items():
+            if k.startswith("wall_s"):
+                u_runs[float(r["s"])] = r
+    um = lambda r: float(np.mean(np.asarray(r["sweep"]["U_far"])[0][:3] - r["sweep"]["mu0"]))   # noqa: E731
+    uni_mean = um(u_runs[0.75]) - um(u_runs[0.0])
+    return f"""<h3>Line spectrum 940 with the ε = 2.6 flat-band fit</h3>
+<p>The ε = 2.6 cell with the flat band in place (ΔE<sub>F</sub> = {1e3 * p['dEF']:.0f} meV, n<sub>sub</sub> =
+{f"{p['nsub'] / 1e13:.3f}".replace("-", "−")}×10¹³ cm⁻², {holes / 1e10:.0f}×10¹⁰ holes) was carried across the wall in
+the local approximation as above: the same fixed charge per layer, n<sub>sub</sub> and tip for every stack. The
+{len(walls)} wall stacks are spaced by about 1 nm of the fitted profile within 3 nm of the wall centre and more widely
+beyond (s = {", ".join(f"{s:g}" for s in sorted(walls))}).</p>
+<p>The charge balance of the wall stack is three times larger than at ε = 15: far from the tip the top layer moves
+from {mv1(r0['U1'])} meV ((+⁵)) to {mv1(r1['U1'])} meV ((+⁴−)). The flat-band peak hardly follows. Under the tip it
+stays at {mv1(min(r['peak'] for r in alive))} to {mv1(max(r['peak'] for r in alive))} mV up to s = {last['s']:g}
+({abs(dx(last['s'])):.0f} nm on the (+⁴−) side of the centre), a bend of {mv1(bend['polarized'])} mV against the measured
+{mv1(bend['measured'])} mV, while its height falls to {100 * last['height'] / r0['height']:.0f} % of the (+⁵) value; without
+the tip it moves from {mv1(tf[f"{r0['s']:.2f}"])} to {mv1(tf[f"{last['s']:.2f}"])} mV. The reason is where the shift goes.
+With E<sub>F</sub> in the gap of a neutral, polarized stack the wall stack cannot move as a whole: its charge rearrangement
+is a dipole inside the stack. Between s = 0 and s = {last['s']:g} the top layer goes down by
+{abs(1e3 * (last['U'][0] - r0['U'][0])):.0f} meV while layers 3 to 6 go up by
+{1e3 * min(last['U'][k] - r0['U'][k] for k in range(2, 6)):.0f} to {1e3 * max(last['U'][k] - r0['U'][k] for k in range(2, 6)):.0f} meV,
+and the mean of the top three layers, over which the flat band near its peak is spread, moves by only
+{mv1(np.mean(last['U'][:3]) - np.mean(r0['U'][:3]))} meV. In the uniformly doped stack of the first calculation
+E<sub>F</sub> lies in the bands and each wall stack takes its own Fermi level against the fixed charges; there all layers
+move down together, the mean of the top three by {mv1(uni_mean)} meV at s = 0.75, and the flat band follows. The tip
+does not add to the bend: its bending of the top layer at the peak bias falls from {mv1(r0['bend_pk'])} meV on the (+⁵)
+side to {mv1(last['bend_pk'])} meV at s = {last['s']:g}, so the peak under the tip moves even less than without it. On
+the (+⁴−) side the lowest edge above E<sub>F</sub> lies at
+{mv(e['polarized'][far_l].mean())} mV far from the wall (measured {mv(e['measured'][far_l].mean())} mV). The measured edge
+is already at {mv(e['measured'][j5])} mV 5 nm before the centre, where the model is still at {mv(e['polarized'][j5])} mV;
+the model's edge rises only within the last 3 nm, to {mv(e['polarized'][j2])} mV 2 nm before the centre.</p>
+<div class="tablewrap"><table>
+<tr><th>s</th><th>distance from the wall centre</th><th>top layer far from the tip, U<sub>1</sub> − E<sub>F</sub></th>
+<th>flat-band peak</th><th>its height (of the (+⁵) peak)</th><th>tip-induced bending at the peak bias</th></tr>
+{table}
+</table></div>
+<div class="figs">
+<figure><img src="{img_prefix}stacking_wall_polar_eps26_fb_map_940.png" alt="line spectrum 940, measured and the eps = 2.6 flat-band fit">
+<figcaption>Line spectrum 940: measured dI/dV(V, x) and its bias derivative (left) against the ε = 2.6 flat-band fit in
+the local approximation (right).</figcaption></figure>
+<figure><img src="{img_prefix}stacking_wall_polar_eps26_fb_spectra_940.png" alt="spectra of the eps = 2.6 wall stacks and the flat-band peak along the line">
+<figcaption>Left: top-layer dI/dV of the ε = 2.6 wall stack at each s under the same tip. Right: the flat-band peak
+along the line, measured and for the four models (the ε = 2.6 flat-band fit, the uniformly doped stack of the first
+calculation, the polarized stack at ε = 15).</figcaption></figure>
+</div>
+"""
+
+
 def polar_series_numbers(suffix=""):
     """Numbers of a polarized-stack line spectrum (stacking_wall_polar_series.py), or None."""
     path = os.path.join(EXAMPLES, f"stacking_wall_polar{suffix}_940.json")
@@ -598,7 +681,8 @@ def polar_series_numbers(suffix=""):
         V, U0, Uf = np.asarray(sw["bias"]), np.asarray(sw["U0"]), np.asarray(sw["U_far"])
         pk = st["peaks_s"][f"{r['s']:.2f}"]
         h = st.get("heights", {}).get(f"{r['s']:.2f}", 1.0)
-        rows.append(dict(s=r["s"], U1=float(Uf[0, 0] - sw["mu0"]), mu0=sw["mu0"], peak=pk, height=h, faded=h < 0.1,
+        rows.append(dict(s=r["s"], U1=float(Uf[0, 0] - sw["mu0"]), U=(Uf[0] - sw["mu0"]).tolist(), mu0=sw["mu0"], peak=pk,
+                         height=h, faded=h < 0.1,
                          bend0=float(np.interp(0.0, V, U0[:, 0] - Uf[:, 0])),
                          bend_pk=float(np.interp(pk, V, U0[:, 0] - Uf[:, 0]))))
     return dict(state=st, rows=rows)
@@ -853,6 +937,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 {epsfit_text(img_prefix)}
 {polar_series_text(img_prefix)}
 {eps26_fit_text(img_prefix)}
+{eps26_series_text(img_prefix)}
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

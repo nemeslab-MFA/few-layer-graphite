@@ -192,3 +192,4 @@ examples/stacking_wall_lateral_dos.npz
 stacking_wall_epsfit/cells/
 stacking_wall_epsfit/polar/
 stacking_wall_epsfit/series/
+stacking_wall_epsfit/fixeps/

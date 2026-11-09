@@ -216,17 +216,22 @@ def ldos_wall(wall_length=40.0, length=4800.0, strip=None, p_cut=0.13,
     sigma       : Gaussian broadening (eV)
     x_out       : positions (A) where the LDOS is evaluated, default -1200 .. 1200 A
     params      : overrides of the SWMcC parameters (see multilayer_graphene)
-    layer_potential : on-site energy of each of the six layers (eV), optional
+    layer_potential : on-site energy of each of the six layers (eV), optional, in the k.p
+                  layer order: index 0 is the bottom (substrate) layer, index N-1 the top
+                  layer that faces the tip (the bandbending engine numbers them the other
+                  way: reverse its arrays with [::-1] before passing them here)
     n_proc      : worker processes (default: all CPUs), one BLAS thread each
     profile     : callable s(x) in place of ``wall_profile``
     seq_rg, seq_sf : the two stackings (same number of layers)
     layer_potential_profile : callable x (A, periodic cell) -> (N_layers, len(x))
         on-site potential energies of the layers (eV), e.g. the far-field
-        potentials of a Poisson solver along the wall; must be periodic on the cell
+        potentials of a Poisson solver along the wall; must be periodic on the cell;
+        layers in the k.p order (bottom first, as ``layer_potential``)
 
     Returns a dict with 'energy' (eV), 'x' (A), 's' (profile at x), 'ldos'
     of shape (N_layers, n_E, n_x) in states / (eV A^2), spin and valley
-    included, and the parameters used.
+    included (bottom layer first: the top-layer LDOS is ldos[-1]), and the
+    parameters used.
     """
     energy = np.linspace(-0.5, 0.5, 401) if energy is None else np.asarray(energy, dtype=float)
     x_out = np.arange(-1200.0, 1200.0 + 1e-9, 5.0) if x_out is None else np.asarray(x_out, dtype=float)

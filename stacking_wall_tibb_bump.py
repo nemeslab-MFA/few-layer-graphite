@@ -9,6 +9,8 @@ potentials of the hybrid (V_l(x) = U_far,l − μ0 of the stack at s(x)) plus th
 the stack at s(x_tip) at the bias V where the flat-band peak is measured at the wall,
 and w = sqrt(2 R d) the size of the gated spot.  The k·p wall model is solved with these
 potentials and the top-layer LDOS is read at x_tip.  Results are cached per position.
+The engine numbers the layers from the top, the k·p model from the bottom: the potentials
+are reversed when they are handed over (results before 2026-11-09 had them unreversed).
 
     python stacking_wall_tibb_bump.py --tag 514 --positions -10 -6 -3 0 4 [--sm4 FILE]
 
@@ -101,8 +103,9 @@ def main():
             s_t = float(sw.wall_profile(x_tip, ell, L))
             bump = dU_of_s(s_t) if variant == "bump" else np.zeros(6)
             profile = lambda x, ell=ell: sw.wall_profile(x, ell, L)                                    # noqa: E731
+            # engine arrays are top layer first, the k.p model wants the bottom layer first
             lpp = lambda x, bump=bump, x_tip=x_tip: (V_of_s(profile(x))                                 # noqa: E731
-                                                     + bump[:, None] * np.exp(-0.5 * ((np.asarray(x, dtype=float) - x_tip) / w) ** 2)[None, :])
+                                                     + bump[:, None] * np.exp(-0.5 * ((np.asarray(x, dtype=float) - x_tip) / w) ** 2)[None, :])[::-1]
             t0 = time.time()
             res = sw.ldos_wall(wall_length=ell, length=L, p_cut=args.p_cut, ky_max=args.p_cut, dky=args.dky,
                                sigma=args.sigma, energy=energy, x_out=np.array([x_tip]), layer_potential_profile=lpp)

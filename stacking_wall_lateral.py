@@ -15,7 +15,8 @@ axisymmetric tip field of the (+5) stack.
 
 For every tip position the layer potentials U_l(x, y = 0) are stored with the tip-free
 two-dimensional solution U0_l(x).  With --kp the k.p wall model is solved with
-V_l(x) = U_l(x, 0) - mu0 (the lateral solution inside the box, the columns elsewhere) and
+V_l(x) = U_l(x, 0) - mu0 (the lateral solution inside the box, the columns elsewhere; layer
+order reversed for the k.p model, which numbers the layers from the bottom) and
 the top-layer LDOS under the tip is read, as in stacking_wall_tibb_bump.py.
 
     python stacking_wall_lateral.py --tag 514                # potentials, many positions
@@ -138,7 +139,8 @@ def columns(tables):
 
 def potential_profile(x_box, U_box, cols, ell, L, mu0):
     """x (A, periodic cell) -> (6, n) on-site energies for the k.p model: the columns of the
-    local stack everywhere, replaced by the lateral solution inside the box."""
+    local stack everywhere, replaced by the lateral solution inside the box.  The inputs are
+    top layer first (as the engine); the output is in the k.p order, bottom layer first."""
     x_box = np.asarray(x_box, dtype=float)
     s_box = 0.5 * (1.0 - np.tanh(x_box / ell))
     col_box = np.array([np.interp(s_box, S_GRID, cols[:, l]) for l in range(6)])            # (6, nx)
@@ -150,7 +152,7 @@ def potential_profile(x_box, U_box, cols, ell, L, mu0):
         xn = (np.mod(xa + 5.0 * L, 10.0 * L) - 5.0 * L) / 10.0                            # nm, main wall at 0
         V = np.array([np.interp(s, S_GRID, cols[:, l]) + np.interp(xn, x_box, dU[l], left=0.0, right=0.0)
                       for l in range(6)])
-        return V - mu0
+        return (V - mu0)[::-1]
     return f
 
 

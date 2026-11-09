@@ -227,6 +227,24 @@ def test_uniform_layer_potential_profile_equals_layer_potential():
     assert not np.allclose(a["ldos"], c["ldos"])
 
 
+def test_layer_order_is_bottom_first():
+    """The k.p arrays are bottom layer first: an on-site energy on the last index moves the flat
+    band of the top-layer LDOS ldos[-1], one on index 0 barely does (the bandbending engine
+    numbers the layers the other way, so its potentials must be reversed)."""
+    E = np.arange(-0.1, 0.1 + 1e-9, 0.0025)
+    common = dict(length=600.0, p_cut=0.06, ky_max=0.06, dky=0.004, energy=E, sigma=0.005,
+                  x_out=np.array([0.0]), n_proc=1, profile=lambda t: np.zeros_like(t))
+
+    def top_peak(V):
+        return sw.flat_band_energy(E, sw.ldos_wall(layer_potential=V, **common)["ldos"][-1][:, 0])
+
+    e0 = top_peak(None)
+    e_top = top_peak([0.0, 0.0, 0.0, 0.0, 0.0, -0.05])
+    e_bottom = top_peak([-0.05, 0.0, 0.0, 0.0, 0.0, 0.0])
+    assert e_top < e0 - 0.02
+    assert abs(e_bottom - e0) < 0.006
+
+
 def test_lateral_potential_profile_is_periodic_and_reduces_to_the_columns():
     """The k.p on-site profile built from a lateral solution: periodic on the cell, equal to
     the lateral layer potentials (minus mu0) inside the solved box, to the columns of the
@@ -246,10 +264,10 @@ def test_lateral_potential_profile_is_periodic_and_reduces_to_the_columns():
     assert V.shape == (6, xa.size)
     assert np.allclose(f(xa + 10.0 * L), V) and np.allclose(f(xa - 10.0 * L), V)
     inside = f(10.0 * x_box)
-    assert np.allclose(inside, U_box - mu0, atol=1e-12)
+    assert np.allclose(inside, (U_box - mu0)[::-1], atol=1e-12)                # k.p order: bottom layer first
     far = np.array([-1400.0, -900.0, 900.0, 1400.0])
     s_far = sw.wall_profile(far, 10.0 * ell, 10.0 * L)
     expect = np.array([np.interp(s_far, s_grid, cols[:, l]) for l in range(6)]) - mu0
-    assert np.allclose(f(far), expect, atol=1e-12)
+    assert np.allclose(f(far), expect[::-1], atol=1e-12)
     # continuous across the box ends (the lateral correction vanishes there)
     assert np.max(np.abs(f(np.array([600.0 - 1e-6])) - f(np.array([600.0 + 1e-6])))) < 1e-6

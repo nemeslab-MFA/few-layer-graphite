@@ -668,6 +668,68 @@ calculation, the polarized stack at ε = 15).</figcaption></figure>
 """
 
 
+def eps26_peaks_series_text(img_prefix=""):
+    """Section: line spectrum 940 with the eps = 2.6 best peak fit, local approximation
+    (stacking_wall_polar_series.py --set eps26_peaks)."""
+    n = polar_series_numbers("_eps26_peaks")
+    if n is None:
+        return ""
+    st, rows = n["state"], n["rows"]
+    p, fit = st["params"], st["fit"]
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    mv1 = lambda v: ("0.0" if abs(v) < 5e-5 else f"{1e3 * v:+.1f}".replace("-", "−"))  # noqa: E731
+    dx = lambda s: (0.0 if abs(s - 0.5) < 1e-9 else fit["ell"] * np.arctanh(1.0 - 2.0 * s)) if 0.0 < s < 1.0 else None  # noqa: E731
+    table = "".join(
+        f"<tr><td>{r['s']:g}</td><td>{'' if dx(r['s']) is None else ('0 nm' if dx(r['s']) == 0.0 else f'{dx(r[chr(115)]):+.1f} nm'.replace('-', '−'))}</td>"
+        f"<td>{mv1(r['U1'])} meV</td>"
+        + ("<td colspan=\"3\">flat band faded</td></tr>" if r["faded"] else
+           f"<td>{mv1(r['peak'])} mV</td><td>{100 * r['height'] / rows[0]['height']:.0f} %</td><td>{mv1(r['bend_pk'])} meV</td></tr>")
+        for r in rows)
+    alive = [r for r in rows if not r["faded"]]
+    r0, last = rows[0], max(alive, key=lambda r: r["s"])
+    faded_s = min(r["s"] for r in rows if r["faded"])
+    tf = st.get("tipfree_peaks", {})
+    tip_vs_free = max(abs(r["peak"] - tf[f"{r['s']:.2f}"]) for r in alive if f"{r['s']:.2f}" in tf)
+    bend = {k: st[f"extreme_{k}"] - st[f"far_{k}"] for k in ("measured", "polarized")}
+    dist = np.asarray(st["track"]["dist"])
+    e = {k: np.asarray(st["edge"][k]) for k in ("measured", "polarized")}
+    far_l = dist < 10.0
+    j5 = int(np.argmin(np.abs(dist - (fit["x0"] - 5.0))))
+    j2 = int(np.argmin(np.abs(dist - (fit["x0"] - 2.0))))
+    eps26 = json.load(open(os.path.join(EXAMPLES, "stacking_wall_eps26_940.json")))["best"]
+    return f"""<h3>Line spectrum 940 with the ε = 2.6 best peak fit</h3>
+<p>The ε = 2.6 cell with the lowest rms of the five peak positions (ΔE<sub>F</sub> = {1e3 * p['dEF']:.0f} meV,
+n<sub>sub</sub> = {f"{p['nsub'] / 1e13:.3f}".replace("-", "−")}×10¹³ cm⁻², {-eps26['carriers'] / 1e12:.1f}×10¹² holes) was
+carried across the wall on the same s grid as the flat-band fit, with the same construction. Its flat-band peak does not
+move: it stays at {mv1(min(r['peak'] for r in alive))} to {mv1(max(r['peak'] for r in alive))} mV up to s = {last['s']:g}
+(a bend of {mv1(bend['polarized'])} mV against the measured {mv1(bend['measured'])} mV) and fades from there, to
+{100 * last['height'] / r0['height']:.0f} % of its (+⁵) height at s = {last['s']:g} and below the background at
+s = {faded_s:g}. {"The peaks with and without the tip are identical on the 2.5 mV grid" if tip_vs_free < 1e-6 else f"The peaks with and without the tip differ by at most {1e3 * tip_vs_free:.1f} mV"}, and the tip bends the
+top layer at the peak bias by {mv1(min(r['bend_pk'] for r in alive))} to {mv1(max(r['bend_pk'] for r in alive))} meV:
+the holes put states at E<sub>F</sub>, which screen the tip and hold the flat band at E<sub>F</sub>, while the top layer
+far from the tip moves from {mv1(r0['U1'])} to {mv1(last['U1'])} meV and the mean of the top three layers by
+{mv1(np.mean(last['U'][:3]) - np.mean(r0['U'][:3]))} meV. Neither ε = 2.6 parameter set bends the flat band: with
+E<sub>F</sub> in the gap (flat-band fit) the charge rearrangement of the wall is a dipole the flat band barely sees, with
+holes at E<sub>F</sub> (best peak fit) the band stays at E<sub>F</sub>. On the (+⁴−) side the lowest edge above
+E<sub>F</sub> lies at {mv(e['polarized'][far_l].mean())} mV far from the wall (measured {mv(e['measured'][far_l].mean())} mV);
+5 nm before the centre the model is at {mv(e['polarized'][j5])} mV against the measured {mv(e['measured'][j5])} mV, and it
+rises to {mv(e['polarized'][j2])} mV 2 nm before the centre.</p>
+<div class="tablewrap"><table>
+<tr><th>s</th><th>distance from the wall centre</th><th>top layer far from the tip, U<sub>1</sub> − E<sub>F</sub></th>
+<th>flat-band peak</th><th>its height (of the (+⁵) peak)</th><th>tip-induced bending at the peak bias</th></tr>
+{table}
+</table></div>
+<div class="figs">
+<figure><img src="{img_prefix}stacking_wall_polar_eps26_peaks_map_940.png" alt="line spectrum 940, measured and the eps = 2.6 best peak fit">
+<figcaption>Line spectrum 940: measured dI/dV(V, x) and its bias derivative (left) against the ε = 2.6 best peak fit in
+the local approximation (right).</figcaption></figure>
+<figure><img src="{img_prefix}stacking_wall_polar_eps26_peaks_spectra_940.png" alt="spectra of the eps = 2.6 best-peak wall stacks and the flat-band peak along the line">
+<figcaption>Left: top-layer dI/dV of the ε = 2.6 best-peak wall stack at each s under the same tip. Right: the flat-band
+peak along the line, measured and for all models.</figcaption></figure>
+</div>
+"""
+
+
 def polar_series_numbers(suffix=""):
     """Numbers of a polarized-stack line spectrum (stacking_wall_polar_series.py), or None."""
     path = os.path.join(EXAMPLES, f"stacking_wall_polar{suffix}_940.json")
@@ -938,6 +1000,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 {polar_series_text(img_prefix)}
 {eps26_fit_text(img_prefix)}
 {eps26_series_text(img_prefix)}
+{eps26_peaks_series_text(img_prefix)}
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

@@ -454,6 +454,233 @@ model with the lateral potentials, with and without the tip, and the Gaussian-bu
 """
 
 
+def epsfit_text(img_prefix=""):
+    """Section: refit of the (+5) spectrum of 940 over interlayer eps and starting doping, uniformly
+    doped and polarized (examples/stacking_wall_epsfit_940.json, stacking_wall_epsfit/)."""
+    path = os.path.join(EXAMPLES, "stacking_wall_epsfit_940.json")
+    if not os.path.exists(path):
+        return ""
+    with open(path) as fh:
+        s = json.load(fh)
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    m4, m5 = s["measured"]["features4"], s["measured"]["features5"]
+    prev, ub, uf = s["previous"], s["uniform"]["best"], s["uniform"]["flat_band_in_place"]
+    pb = s["polarized"]["best"]
+    near = [n for n in s["polarized"]["near"] if (n["eps"], n["dEF"]) != (pb["eps"], pb["dEF"])][:2]
+    U = pb["U_far_minus_EF"]
+    n_valid = sum(c["valid"] for c in s["polarized"]["cells"])
+    dev_u = [abs(1e3 * (uf['features'][k] - m4[k])) for k in (0, 2, 3)]
+    dev_p = [abs(1e3 * (a - b)) for a, b in zip(pb['features'], m5)]
+    names = ["lower side-band peak", "flat-band peak", "bottom-band onset", "upper side-band edge 1", "upper side-band edge 2"]
+    rows = "".join(f"<tr><td>{n}</td><td>{mv(m)} mV</td><td>{mv(t)} mV</td><td>{mv(f)} mV</td></tr>"
+                   for n, m, t, f in zip(names, m5, pb["features"], pb["features_free"]))
+    near_txt = " and ".join(f"ε = {n['eps']:g}, ΔE<sub>F</sub> = {1e3 * n['dEF']:.0f} meV ({1e3 * n['rms']:.1f} mV)" for n in near)
+    return f"""<h3>Refit of the (+⁵) spectrum of 940: interlayer ε, starting doping and SiO₂ charge</h3>
+<p>The (+⁵) fit above varied only the contact potential, with ε = 2.6 between the layers and the doping set by the
+tip-free flat-band position. It puts the flat band within 8 mV, but not the side bands: the lower side-band peak,
+the flat-band peak and the two upper side-band edges (measured {mv(m4[0])}, {mv(m4[1])}, {mv(m4[2])} and {mv(m4[3])} mV)
+miss by {1e3 * prev['rms']:.0f} mV rms. Two models were therefore scanned over the interlayer permittivity ε (1 to 25)
+and the starting doping ΔE<sub>F</sub> (the Fermi level of the field-free doped stack above its neutrality point), 48
+self-consistent tip sweeps each, with the same tip set to bend nothing at zero bias, as the asymmetry of the bends
+suggests (<code>stacking_wall_epsfit/</code>; the draft Poisson grid, which agrees with the normal one to 0.01 meV).</p>
+<p><b>Uniformly doped stack.</b> With no other charge, the doped stack is field-free far from the tip. The best match is
+{1e3 * ub['rms']:.0f} mV at ΔE<sub>F</sub> = {1e3 * ub['dEF']:.0f} meV, but with the flat band at {mv(ub['features'][1])} mV;
+with the flat band in place (ε = {uf['eps']:g}, ΔE<sub>F</sub> = {1e3 * uf['dEF']:.0f} meV) it is {1e3 * uf['rms']:.0f} mV,
+with the three side-band features {min(dev_u):.0f} to {max(dev_u):.0f} mV too low. ε changes this by a few mV at most.
+A field-free stack centres its side bands on the flat band, while the measured lower side-band peak and first upper
+edge are centred {1e3 * (0.5 * (m4[0] + m4[2]) - m4[1]):.0f} mV above it: the measured spectrum asks for a field across
+the stack.</p>
+<p><b>Polarized stack.</b> The doping is then partly compensated by a fixed charge n<sub>sub</sub> in the top 2 nm of
+the SiO₂, chosen for every (ε, ΔE<sub>F</sub>) as the value whose tip-free spectrum fits best, and the fit takes a fifth
+feature, the onset of the empty bottom-surface band ({mv(m5[2])} mV). The best match under the tip is
+{1e3 * pb['rms']:.1f} mV at ε = {pb['eps']:g}, ΔE<sub>F</sub> = {1e3 * pb['dEF']:.0f} meV and n<sub>sub</sub> =
+{f"{pb['nsub'] / 1e13:.3f}".replace("-", "−")}×10¹³ cm⁻² ({1e3 * pb['rms_free']:.1f} mV for the same stack without the tip). The minimum is a
+valley rather than a point, {near_txt} come within 0.3 mV, so the scan fixes the combination of a higher doping and a
+larger ε, not each. Far from the tip the stack is neutral (within {abs(pb['carriers']) / 1e10:.0f}×10¹⁰ cm⁻²) and
+polarized: the top layer {mv(U[0])} meV and the bottom layer {mv(U[-1])} meV from E<sub>F</sub>, the filled top flat
+band below E<sub>F</sub> and the empty bottom one above it. Four of the five features fall within {min(dev_p[1:]):.0f} to
+{max(dev_p[1:]):.0f} mV; the lower
+side-band peak stays {abs(1e3 * (pb['features'][0] - m5[0])):.0f} mV too deep under the tip, where the tip bends the top
+layer by tens of meV at negative bias (it is {abs(1e3 * (pb['features_free'][0] - m5[0])):.0f} mV too shallow without the
+tip). At low ε the weakly screening stack lets the tip pull the flat band far too deep or out of its search window
+({len(s['polarized']['cells']) - n_valid} of the {len(s['polarized']['cells'])} cells lose a feature, dashes in the map). The fitted ε of 10 to 25 is not that of graphite's
+σ bands (2.6); it stands for screening the model lacks, such as states in the gap or charges that move. The wall and
+(+⁴−) calculations above keep the uniformly doped far field.</p>
+<div class="tablewrap"><table>
+<tr><th>feature</th><th>measured</th><th>polarized stack under the tip</th><th>same stack without the tip</th></tr>
+{rows}
+</table></div>
+<figure><img src="{img_prefix}stacking_wall_epsfit_940.png" alt="interlayer permittivity and starting doping scans of the (+5) spectrum of 940">
+<figcaption>(a) Feature rms under the tip of the polarized stack over ε and ΔE<sub>F</sub> (n<sub>sub</sub> fitted per cell
+without the tip); the frame marks the best cell. (b) The best polarized stack under the tip (solid) and without it
+(dashed) against the measured (+⁵) spectrum of 940. (c, d) The same for the uniformly doped stack: the best cell and the
+best cell with the flat band in place. Dots: the fitted features.</figcaption></figure>
+"""
+
+
+def polar_series_numbers():
+    """Numbers of the polarized-stack line spectrum (stacking_wall_polar_series.py), or None."""
+    path = os.path.join(EXAMPLES, "stacking_wall_polar_940.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        st = json.load(fh)
+    rows = []
+    for k, r in sorted(st["runs"].items(), key=lambda kv: kv[1]["s"]):
+        sw = r["sweep"]
+        V, U0, Uf = np.asarray(sw["bias"]), np.asarray(sw["U0"]), np.asarray(sw["U_far"])
+        pk = st["peaks_s"][f"{r['s']:.2f}"]
+        h = st.get("heights", {}).get(f"{r['s']:.2f}", 1.0)
+        rows.append(dict(s=r["s"], U1=float(Uf[0, 0] - sw["mu0"]), mu0=sw["mu0"], peak=pk, height=h, faded=h < 0.1,
+                         bend0=float(np.interp(0.0, V, U0[:, 0] - Uf[:, 0])),
+                         bend_pk=float(np.interp(pk, V, U0[:, 0] - Uf[:, 0]))))
+    return dict(state=st, rows=rows)
+
+
+def polar_series_text(img_prefix=""):
+    """Section: line spectrum 940 with the best polarized stack, local approximation."""
+    n = polar_series_numbers()
+    if n is None:
+        return ""
+    st, rows = n["state"], n["rows"]
+    p = st["params"]
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    mv1 = lambda v: ("0.0" if abs(v) < 5e-5 else f"{1e3 * v:+.1f}".replace("-", "−"))  # noqa: E731
+    s_list = ", ".join(f"{r['s']:g}" for r in rows)
+    table = "".join(f"<tr><td>{r['s']:g}</td><td>{mv1(r['U1'])} meV</td><td>{mv1(r['bend0'])} meV</td>"
+                    + ("<td colspan=\"3\">flat band faded</td></tr>" if r["faded"] else
+                       f"<td>{mv1(r['peak'])} mV</td><td>{100 * r['height'] / rows[0]['height']:.0f} %</td><td>{mv1(r['bend_pk'])} meV</td></tr>")
+                    for r in rows)
+    bend = {k: st[f"extreme_{k}"] - st[f"far_{k}"] for k in ("measured", "polarized", "uniform")}
+    alive = [r for r in rows if not r["faded"]]
+    r0 = rows[0]
+    rs = min(alive, key=lambda r: r["peak"])
+    d_pk, d_tip, d_u1 = rs["peak"] - r0["peak"], rs["bend_pk"] - r0["bend_pk"], rs["U1"] - r0["U1"]
+    half = next((r["s"] for r in alive if r["height"] < 0.5 * r0["height"]), None)
+    gone = next((r["s"] for r in rows if r["faded"]), None)
+    dist = np.asarray(st["track"]["dist"])
+    e = {k: np.asarray(st["edge"][k]) for k in ("measured", "polarized", "uniform")}
+    j36 = int(np.argmin(np.abs(dist - (st["fit"]["x0"] - 5.0))))
+    s36 = 0.5 * (1 - np.tanh((dist[j36] - st["fit"]["x0"]) / st["fit"]["ell"]))
+    j15 = int(np.argmin(np.abs(dist - 15.0)))
+    s15 = 0.5 * (1 - np.tanh((dist[j15] - st["fit"]["x0"]) / st["fit"]["ell"]))
+    far_l = dist < 10.0
+    reading = (
+        f"The polarized stack starts the flat band at the measured energy and bends it the measured way, but by "
+        f"{100 * bend['polarized'] / bend['measured']:.0f} % of the measured bend; the uniformly doped stack bent it by "
+        f"{100 * bend['uniform'] / bend['measured']:.0f} %, from a start {abs(1e3 * (st['far_uniform'] - st['far_measured'])):.0f} mV too low. "
+        f"Of the {mv1(d_pk)} mV between s = 0 and s = {rs['s']:g}, {mv1(d_tip)} meV is the change of the tip-induced band bending "
+        f"at the peak bias ({mv1(r0['bend_pk'])} meV on the (+⁵) stack, {mv1(rs['bend_pk'])} meV at s = {rs['s']:g}) and "
+        f"{mv1(d_u1)} meV the lower top-layer potential of the wall stack far from the tip. With E<sub>F</sub> in the gap of "
+        f"the polarized stack the tip is screened less well, and the tip-induced part, a few meV in the uniformly doped "
+        f"stack, becomes the larger one. Beyond that the flat band splits into the peak near −30 mV and a shoulder near "
+        f"−70 mV and fades (below half its (+⁵) height from s = {half:g}, gone at s = {gone:g}), so the model loses it near "
+        f"the wall centre, where the measured peak still reaches {mv(st['extreme_measured'])} mV. On the (+⁴−) side the "
+        f"lowest edge above E<sub>F</sub> lies at {mv(e['polarized'][far_l].mean())} mV in the model and "
+        f"{mv(e['measured'][far_l].mean())} mV in the measurement within 10 nm of the end of the line; the uniformly doped "
+        f"stack has no edge below {mv(e['uniform'][far_l].mean())} mV there. The measured edge then rises to "
+        f"{mv(e['measured'][j36])} mV {st['fit']['x0'] - dist[j36]:.0f} nm from the wall centre (model "
+        f"{mv(e['polarized'][j36])} mV), over a stretch where s(x) only falls from {s15:.2f} to {s36:.2f}: a rise the local "
+        f"approximation cannot follow.")
+    return f"""<h3>Line spectrum 940 with the polarized stack</h3>
+<p>The best polarized stack of the refit (ε = {p['eps']:g}, ΔE<sub>F</sub> = {1e3 * p['dEF']:.0f} meV,
+n<sub>sub</sub> = {f"{p['nsub'] / 1e13:.3f}".replace("-", "−")}×10¹³ cm⁻²) and its tip (no band bending at zero bias on the (+⁵)
+side) were carried across the wall in the local approximation, as the uniformly doped stack above: the wall stack at
+s = {s_list}, each with the same fixed charge per layer (that of the doped (+⁵) stack), the same n<sub>sub</sub> and the
+same tip, and the top-layer dI/dV of each stack placed along the fitted profile s(x) with one global scale, the fit of
+the (+⁵) spectrum (<code>stacking_wall_polar_series.py</code>; 23 biases per sweep, 25 mV steps within 75 mV of zero and
+50 mV beyond, which reproduces a full 25 mV sweep within 0.2 % of the peak). Far from the tip every stack keeps its own
+Fermi level against the same fixed charges; the tip bends the top layer by at most
+{max(abs(r['bend0']) for r in rows) * 1e3:.1f} meV at zero bias on any of them.</p>
+<p>The flat-band peak along the line: measured {mv1(st['far_measured'])} mV far on the (+⁵) side and
+{mv1(st['extreme_measured'])} mV at its deepest ({st['extreme_dist_measured']:.0f} nm), a bend of {mv1(bend['measured'])} mV;
+polarized stack {mv1(st['far_polarized'])} and {mv1(st['extreme_polarized'])} mV ({st['extreme_dist_polarized']:.0f} nm),
+{mv1(bend['polarized'])} mV; uniformly doped stack {mv1(st['far_uniform'])} and {mv1(st['extreme_uniform'])} mV
+({st['extreme_dist_uniform']:.0f} nm), {mv1(bend['uniform'])} mV. {reading}</p>
+<div class="tablewrap"><table>
+<tr><th>s</th><th>top layer far from the tip, U<sub>1</sub> − E<sub>F</sub></th><th>tip-induced bending at 0 V</th>
+<th>flat-band peak</th><th>its height (of the (+⁵) peak)</th><th>tip-induced bending at the peak bias</th></tr>
+{table}
+</table></div>
+<div class="figs">
+<figure><img src="{img_prefix}stacking_wall_polar_map_940.png" alt="line spectrum 940, measured and polarized-stack model">
+<figcaption>Line spectrum 940: measured dI/dV(V, x) and its bias derivative (left) against the polarized-stack model
+in the local approximation (right).</figcaption></figure>
+<figure><img src="{img_prefix}stacking_wall_polar_spectra_940.png" alt="spectra of the polarized wall stacks and the flat-band peak along the line">
+<figcaption>Left: top-layer dI/dV of the polarized wall stack at each s under the same tip. Right: the flat-band peak
+along the line while it is visible, measured, polarized stack and the uniformly doped stack of the series above.</figcaption></figure>
+</div>
+"""
+
+
+def bend_asymmetry(states):
+    """Contact potential from the two measured bends in the tip-gating picture: a feature at
+    energy E0 is seen at the bias V where V (1 - alpha) = E0 + alpha CPot, with one lever arm
+    alpha (times r for the second line) and one CPot for both lines; E0 the far-field flat band."""
+    rows = {}
+    for t, st in states.items():
+        s, meas = st["settings"], st["measured"]
+        bias = np.asarray(meas["bias"])
+        n = tibb_numbers(st)
+        rows[t] = dict(E0=s["E_fb_measured"], V=n["meas_wall_peak"], step=float(np.median(np.diff(bias))),
+                       sim_bend=(n["wall_peak"] - n["rg_peak"]) if "wall_peak" in n and "rg_peak" in n else None,
+                       tibb=n.get("wall_bend"))
+    if len(rows) < 2:
+        return None
+    t1, t2 = list(rows)[:2]
+    up, down = (t1, t2) if rows[t1]["E0"] > 0 else (t2, t1)
+
+    def fit(V1, E1, V2, E2, r=1.0):
+        a = (V2 - E2 - r * (V1 - E1)) / (r * (V2 - V1))
+        return a, (V1 * (1.0 - a) - E1) / a
+
+    u, d = rows[up], rows[down]
+    alpha, C = fit(u["V"], u["E0"], d["V"], d["E0"])
+    h = 0.5 * max(u["step"], d["step"])
+    pos = [fit(u["V"] + a, u["E0"] + b, d["V"] + c, d["E0"] + e)[1]
+           for a in (-h, h) for b in (-h, h) for c in (-h, h) for e in (-h, h)]
+    lev = [fit(u["V"], u["E0"], d["V"], d["E0"], r)[1] for r in (0.8, 1.25)]
+    pred = {cp: (alpha * (u["V"] + cp), alpha * (d["V"] + cp)) for cp in (-0.05, 0.0, 0.05)}
+    return dict(up=up, down=down, rows=rows, alpha=alpha, C=C, pos=(min(pos), max(pos)), lev=(min(lev), max(lev)),
+                h=h, pred=pred)
+
+
+def asymmetry_text(states):
+    """Paragraph: what the different size of the upward and downward bends says about CPot."""
+    a = bend_asymmetry(states)
+    if a is None:
+        return ""
+    u, d = a["rows"][a["up"]], a["rows"][a["down"]]
+    bu, bd = u["V"] - u["E0"], d["V"] - d["E0"]
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    pred = "; ".join(f"CPot {mv(cp) if cp else '0'} meV: {mv(p[0])} and {mv(p[1])} mV" for cp, p in a["pred"].items())
+    sim = ""
+    if u["sim_bend"] is not None and d["sim_bend"] is not None and u["tibb"] is not None and d["tibb"] is not None:
+        sim = (f" The self-consistent model at CPot = 0 also bends the band further down than up (simulated "
+               f"{mv(d['sim_bend'])} against {mv(u['sim_bend'])} mV, ratio {abs(d['sim_bend'] / u['sim_bend']):.2f}), "
+               f"through the charge balance of the wall stack, which grows with the distance of the far-field flat band "
+               f"from E<sub>F</sub> ({abs(d['E0'] / u['E0']):.2f} times larger in {a['down']}).")
+    return f"""<p><b>The asymmetry of the bends.</b> The flat band bends up by {1e3 * abs(bu):.0f} mV in {a['up']} (from
+{mv(u['E0'])} mV far on the (+⁵) side to {mv(u['V'])} mV at the wall) and down by {1e3 * abs(bd):.0f} mV in {a['down']} (from
+{mv(d['E0'])} to {mv(d['V'])} mV): the downward bend is {abs(bd / bu):.2f} times the upward one. This does not
+point to a contact potential. Per volt of bias the two bends are the same, {bu / u['V']:.2f} and {bd / d['V']:.2f}:
+the flat band of {a['down']} lies further from E<sub>F</sub> and is seen at a larger bias, so it bends more. In the
+tip-gating picture a feature at energy E<sub>0</sub> appears at the bias V with V(1 − α) = E<sub>0</sub> + α CPot;
+one lever arm α and one CPot for both lines fit the two bends exactly with α = {a['alpha']:.2f} and CPot =
+{mv(a['C'])} meV (no band bending at {mv(-a['C'])} mV). Moving each of the four positions by half a bias step
+(±{1e3 * a['h']:.2f} mV) gives CPot from {mv(a['pos'][0])} to {mv(a['pos'][1])} meV, and lever arms differing by up to
+25 % between the two walls from {mv(a['lev'][0])} to {mv(a['lev'][1])} meV. The ratio of the bends is very sensitive
+to CPot (upward and downward bend at the measured biases: {pred}): a tip whose work function exceeded the sample's
+would favour the upward bend, a lower one the downward bend. Read this way, tip and sample work functions agree
+within about 10 meV, in line with CPot = 0 ± 0.05 eV from the (+⁵) spectra and far from the +1.05 eV of a vacuum Pt
+tip. Two qualifications. The fit assumes one tip for both lines, which were recorded on different days; with
+different tips each line gives only the bound above. And it needs {100 * a['alpha']:.0f} % of the bias to drop in the
+sample, while the self-consistent calculation bends the top layer at the wall by only {mv(u['tibb'])} and
+{mv(d['tibb'])} meV at the peak bias.{sim} Under either mechanism the asymmetry follows from the different doping of
+the two regions and needs no contact potential.</p>
+"""
+
+
 def workfunction_text(states):
     """Paragraph on the tip work function: what entered the calculation and what the data say."""
     rows = {}
@@ -497,7 +724,7 @@ different work function separates the two: the tip-gating bend changes sign when
 flat-band bias, the charge-balance bend does not. For comparison, the engine's authors found an effective contact
 potential of about +0.1 eV for Au and PtIr tips on rhombohedral graphite, and vacuum work-function differences
 (Pt: +1.05 eV) overestimate the tip field several times.</p>
-"""
+{asymmetry_text(states)}"""
 
 
 def tibb_text(states, img_prefix=""):
@@ -556,6 +783,8 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 {hybrid_text(states, img_prefix)}
 {bump_text(states, img_prefix)}
 {lateral_text(states, img_prefix)}
+{epsfit_text(img_prefix)}
+{polar_series_text(img_prefix)}
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
 states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and

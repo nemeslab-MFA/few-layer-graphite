@@ -185,6 +185,24 @@ different work function separates the two: the tip-gating bend changes sign when
 flat-band bias, the charge-balance bend does not. For comparison, the engine's authors found an effective contact
 potential of about +0.1 eV for Au and PtIr tips on rhombohedral graphite, and vacuum work-function differences
 (Pt: +1.05 eV) overestimate the tip field several times.</p>
+<p><b>The asymmetry of the bends.</b> The flat band bends up by 34 mV in 514 (from
++23 mV far on the (+⁵) side to +56 mV at the wall) and down by 53 mV in 940 (from
+−32 to −85 mV): the downward bend is 1.56 times the upward one. This does not
+point to a contact potential. Per volt of bias the two bends are the same, 0.60 and 0.62:
+the flat band of 940 lies further from E<sub>F</sub> and is seen at a larger bias, so it bends more. In the
+tip-gating picture a feature at energy E<sub>0</sub> appears at the bias V with V(1 − α) = E<sub>0</sub> + α CPot;
+one lever arm α and one CPot for both lines fit the two bends exactly with α = 0.61 and CPot =
+−1 meV (no band bending at +1 mV). Moving each of the four positions by half a bias step
+(±1.87 mV) gives CPot from −5 to +3 meV, and lever arms differing by up to
+25 % between the two walls from −8 to +7 meV. The ratio of the bends is very sensitive
+to CPot (upward and downward bend at the measured biases: CPot −50 meV: +4 and −82 mV; CPot 0 meV: +34 and −52 mV; CPot +50 meV: +65 and −21 mV): a tip whose work function exceeded the sample's
+would favour the upward bend, a lower one the downward bend. Read this way, tip and sample work functions agree
+within about 10 meV, in line with CPot = 0 ± 0.05 eV from the (+⁵) spectra and far from the +1.05 eV of a vacuum Pt
+tip. Two qualifications. The fit assumes one tip for both lines, which were recorded on different days; with
+different tips each line gives only the bound above. And it needs 61 % of the bias to drop in the
+sample, while the self-consistent calculation bends the top layer at the wall by only +4 and
+−7 meV at the peak bias. The self-consistent model at CPot = 0 also bends the band further down than up (simulated −22 against +20 mV, ratio 1.13), through the charge balance of the wall stack, which grows with the distance of the far-field flat band from E<sub>F</sub> (1.44 times larger in 940). Under either mechanism the asymmetry follows from the different doping of
+the two regions and needs no contact potential.</p>
 
 <p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
 simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
@@ -313,6 +331,76 @@ and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
 tip at several positions (orange). Middle: tip-induced bending under the apex against the tip position, lateral
 solve (solid) and local approximation (dashed), layers 1 and 2. Right: flat-band peak under the tip from the k·p
 model with the lateral potentials, with and without the tip, and the Gaussian-bump result.</figcaption></figure>
+
+<h3>Refit of the (+⁵) spectrum of 940: interlayer ε, starting doping and SiO₂ charge</h3>
+<p>The (+⁵) fit above varied only the contact potential, with ε = 2.6 between the layers and the doping set by the
+tip-free flat-band position. It puts the flat band within 8 mV, but not the side bands: the lower side-band peak,
+the flat-band peak and the two upper side-band edges (measured −256, −32, +272 and +370 mV)
+miss by 45 mV rms. Two models were therefore scanned over the interlayer permittivity ε (1 to 25)
+and the starting doping ΔE<sub>F</sub> (the Fermi level of the field-free doped stack above its neutrality point), 48
+self-consistent tip sweeps each, with the same tip set to bend nothing at zero bias, as the asymmetry of the bends
+suggests (<code>stacking_wall_epsfit/</code>; the draft Poisson grid, which agrees with the normal one to 0.01 meV).</p>
+<p><b>Uniformly doped stack.</b> With no other charge, the doped stack is field-free far from the tip. The best match is
+28 mV at ΔE<sub>F</sub> = 10 meV, but with the flat band at −10 mV;
+with the flat band in place (ε = 15, ΔE<sub>F</sub> = 30 meV) it is 40 mV,
+with the three side-band features 40 to 57 mV too low. ε changes this by a few mV at most.
+A field-free stack centres its side bands on the flat band, while the measured lower side-band peak and first upper
+edge are centred 40 mV above it: the measured spectrum asks for a field across
+the stack.</p>
+<p><b>Polarized stack.</b> The doping is then partly compensated by a fixed charge n<sub>sub</sub> in the top 2 nm of
+the SiO₂, chosen for every (ε, ΔE<sub>F</sub>) as the value whose tip-free spectrum fits best, and the fit takes a fifth
+feature, the onset of the empty bottom-surface band (+69 mV). The best match under the tip is
+18.6 mV at ε = 15, ΔE<sub>F</sub> = 160 meV and n<sub>sub</sub> =
+−1.670×10¹³ cm⁻² (20.5 mV for the same stack without the tip). The minimum is a
+valley rather than a point, ε = 10, ΔE<sub>F</sub> = 130 meV (18.7 mV) and ε = 25, ΔE<sub>F</sub> = 200 meV (18.9 mV) come within 0.3 mV, so the scan fixes the combination of a higher doping and a
+larger ε, not each. Far from the tip the stack is neutral (within 6×10¹⁰ cm⁻²) and
+polarized: the top layer −25 meV and the bottom layer +70 meV from E<sub>F</sub>, the filled top flat
+band below E<sub>F</sub> and the empty bottom one above it. Four of the five features fall within 2 to
+17 mV; the lower
+side-band peak stays 36 mV too deep under the tip, where the tip bends the top
+layer by tens of meV at negative bias (it is 19 mV too shallow without the
+tip). At low ε the weakly screening stack lets the tip pull the flat band far too deep or out of its search window
+(23 of the 48 cells lose a feature, dashes in the map). The fitted ε of 10 to 25 is not that of graphite's
+σ bands (2.6); it stands for screening the model lacks, such as states in the gap or charges that move. The wall and
+(+⁴−) calculations above keep the uniformly doped far field.</p>
+<div class="tablewrap"><table>
+<tr><th>feature</th><th>measured</th><th>polarized stack under the tip</th><th>same stack without the tip</th></tr>
+<tr><td>lower side-band peak</td><td>−256 mV</td><td>−292 mV</td><td>−238 mV</td></tr><tr><td>flat-band peak</td><td>−32 mV</td><td>−30 mV</td><td>−25 mV</td></tr><tr><td>bottom-band onset</td><td>+69 mV</td><td>+58 mV</td><td>+50 mV</td></tr><tr><td>upper side-band edge 1</td><td>+272 mV</td><td>+255 mV</td><td>+240 mV</td></tr><tr><td>upper side-band edge 2</td><td>+370 mV</td><td>+372 mV</td><td>+352 mV</td></tr>
+</table></div>
+<figure><img src="stacking_wall_epsfit_940.png" alt="interlayer permittivity and starting doping scans of the (+5) spectrum of 940">
+<figcaption>(a) Feature rms under the tip of the polarized stack over ε and ΔE<sub>F</sub> (n<sub>sub</sub> fitted per cell
+without the tip); the frame marks the best cell. (b) The best polarized stack under the tip (solid) and without it
+(dashed) against the measured (+⁵) spectrum of 940. (c, d) The same for the uniformly doped stack: the best cell and the
+best cell with the flat band in place. Dots: the fitted features.</figcaption></figure>
+
+<h3>Line spectrum 940 with the polarized stack</h3>
+<p>The best polarized stack of the refit (ε = 15, ΔE<sub>F</sub> = 160 meV,
+n<sub>sub</sub> = −1.670×10¹³ cm⁻²) and its tip (no band bending at zero bias on the (+⁵)
+side) were carried across the wall in the local approximation, as the uniformly doped stack above: the wall stack at
+s = 0, 0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1, each with the same fixed charge per layer (that of the doped (+⁵) stack), the same n<sub>sub</sub> and the
+same tip, and the top-layer dI/dV of each stack placed along the fitted profile s(x) with one global scale, the fit of
+the (+⁵) spectrum (<code>stacking_wall_polar_series.py</code>; 23 biases per sweep, 25 mV steps within 75 mV of zero and
+50 mV beyond, which reproduces a full 25 mV sweep within 0.2 % of the peak). Far from the tip every stack keeps its own
+Fermi level against the same fixed charges; the tip bends the top layer by at most
+5.5 meV at zero bias on any of them.</p>
+<p>The flat-band peak along the line: measured −31.0 mV far on the (+⁵) side and
+−78.0 mV at its deepest (39 nm), a bend of −47.0 mV;
+polarized stack −30.0 and −47.5 mV (40 nm),
+−17.5 mV; uniformly doped stack −40.0 and −62.5 mV
+(36 nm), −22.5 mV. The polarized stack starts the flat band at the measured energy and bends it the measured way, but by 37 % of the measured bend; the uniformly doped stack bent it by 48 %, from a start 9 mV too low. Of the −17.5 mV between s = 0 and s = 0.45, −11.4 meV is the change of the tip-induced band bending at the peak bias (−10.3 meV on the (+⁵) stack, −21.8 meV at s = 0.45) and −6.4 meV the lower top-layer potential of the wall stack far from the tip. With E<sub>F</sub> in the gap of the polarized stack the tip is screened less well, and the tip-induced part, a few meV in the uniformly doped stack, becomes the larger one. Beyond that the flat band splits into the peak near −30 mV and a shoulder near −70 mV and fades (below half its (+⁵) height from s = 0.6, gone at s = 0.9), so the model loses it near the wall centre, where the measured peak still reaches −78 mV. On the (+⁴−) side the lowest edge above E<sub>F</sub> lies at +60 mV in the model and +66 mV in the measurement within 10 nm of the end of the line; the uniformly doped stack has no edge below +258 mV there. The measured edge then rises to +143 mV 5 nm from the wall centre (model +60 mV), over a stretch where s(x) only falls from 1.00 to 0.86: a rise the local approximation cannot follow.</p>
+<div class="tablewrap"><table>
+<tr><th>s</th><th>top layer far from the tip, U<sub>1</sub> − E<sub>F</sub></th><th>tip-induced bending at 0 V</th>
+<th>flat-band peak</th><th>its height (of the (+⁵) peak)</th><th>tip-induced bending at the peak bias</th></tr>
+<tr><td>0</td><td>−24.8 meV</td><td>0.0 meV</td><td>−30.0 mV</td><td>100 %</td><td>−10.3 meV</td></tr><tr><td>0.15</td><td>−26.0 meV</td><td>−0.7 meV</td><td>−35.0 mV</td><td>80 %</td><td>−14.4 meV</td></tr><tr><td>0.3</td><td>−28.2 meV</td><td>−1.1 meV</td><td>−45.0 mV</td><td>66 %</td><td>−20.4 meV</td></tr><tr><td>0.45</td><td>−31.2 meV</td><td>−1.0 meV</td><td>−47.5 mV</td><td>52 %</td><td>−21.8 meV</td></tr><tr><td>0.6</td><td>−34.5 meV</td><td>+1.3 meV</td><td>−30.0 mV</td><td>47 %</td><td>−8.4 meV</td></tr><tr><td>0.75</td><td>−37.5 meV</td><td>+4.6 meV</td><td>−25.0 mV</td><td>38 %</td><td>−0.5 meV</td></tr><tr><td>0.9</td><td>−38.9 meV</td><td>+5.5 meV</td><td colspan="3">flat band faded</td></tr><tr><td>1</td><td>−35.6 meV</td><td>+3.9 meV</td><td colspan="3">flat band faded</td></tr>
+</table></div>
+<div class="figs">
+<figure><img src="stacking_wall_polar_map_940.png" alt="line spectrum 940, measured and polarized-stack model">
+<figcaption>Line spectrum 940: measured dI/dV(V, x) and its bias derivative (left) against the polarized-stack model
+in the local approximation (right).</figcaption></figure>
+<figure><img src="stacking_wall_polar_spectra_940.png" alt="spectra of the polarized wall stacks and the flat-band peak along the line">
+<figcaption>Left: top-layer dI/dV of the polarized wall stack at each s under the same tip. Right: the flat-band peak
+along the line while it is visible, measured, polarized stack and the uniformly doped stack of the series above.</figcaption></figure>
+</div>
 
 <p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
 bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of

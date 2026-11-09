@@ -312,6 +312,24 @@ python stacking_wall_lateral.py --plot
 Results go to `examples/stacking_wall_lateral_TAG.json` and
 `examples/stacking_wall_lateral.png`.
 
+`stacking_wall_epsfit/` refits the (+⁵) spectrum of line 940 over the
+interlayer permittivity ε and the starting doping ΔE_F under the same tip:
+`scan.py` for the uniformly doped stack, `polar.py` for the polarized stack
+(a fixed charge n_sub in the top 2 nm of the SiO₂, chosen per cell from the
+tip-free fit), `analyze.py` for the maps and the summary
+(`examples/stacking_wall_epsfit_940.json`, `.png`).
+`stacking_wall_polar_series.py` carries the best polarized stack across the
+wall in the local approximation and draws the simulated line spectrum next
+to the measured one (`examples/stacking_wall_polar_940.json`,
+`stacking_wall_polar_map_940.png`, `stacking_wall_polar_spectra_940.png`).
+
+```
+python stacking_wall_epsfit/scan.py 0 4     # one of 4 workers; then polar.py the same way
+python stacking_wall_epsfit/analyze.py
+python stacking_wall_polar_series.py run 0  # one of 4 workers
+python stacking_wall_polar_series.py collect --sm4 ..._940.sm4
+```
+
 ## Tests
 
 ```

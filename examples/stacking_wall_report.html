@@ -254,13 +254,24 @@ The tip-induced part of the potential moves with the tip and is left out of the 
 chosen tip positions on request). The fringes of the (+⁴−) side return, together with the band shift of the
 stacks.</p>
 <p>At the position of the measured wall spectrum the flat-band peak sits at +56 mV measured,
-+45 mV in the local approximation and +33 mV in the hybrid for 514; -85,
--62 and -32 mV for 940. The hybrid bends less than the local approximation although
-it uses the same potentials: the top-layer potential of the stacks moves from +23 to
-+58 meV (514) and from -32 to -77 meV (940) between s = 0 and 0.75,
-and in the γ0/γ1 model the top-layer flat band is a pure layer-1 state that takes the whole shift, while in the
-k·p model the flat-band state near the wall spreads into the layers whose potentials barely move and follows only
-part of it.</p>
++45 mV in the local approximation and +45 mV in the hybrid for 514; -85,
+-62 and -47 mV for 940. The top-layer potential of the stacks moves from
++23 to +58 meV (514) and from -32 to -77 meV (940) between
+s = 0 and 0.75, and the k·p flat band near the wall follows it. Measured from the far (+⁵) peak of each
+description, the bend at the wall is +22 mV in the hybrid against
++20 mV in the local approximation and +34 mV measured (514),
+-15, -22 and -53 mV (940). The two
+descriptions of the wall agree to within 2 mV
+(514) and 7 mV (940): the k·p wall, with its
+fringes and remote hoppings, changes little of what the far-field potentials of the stacks do to the flat band, and
+both fall short of the measured bend, by a third in 514 and by more than half in 940.</p>
+<p><b>Correction (2026-11-09).</b> The first version of this section passed the engine's layer potentials to the
+k·p model in the wrong order: the engine numbers the layers from the top, the k·p model from the bottom, so the k·p
+top layer carried the potential of the bottom layer, which barely moves across the wall. The hybrid then bent by
++10 mV (514) and 0 mV (940) at the wall, and the shortfall against the local approximation was put down to the
+k·p flat-band state spreading into the lower layers. That explanation was wrong. The maps, the tip-induced bump
+and the k·p spectra of the lateral solve below are recomputed with the order fixed
+(<code>stacking_wall.ldos_wall</code> now states the order; a regression test checks it).</p>
 <div class="figs">
 <figure><img src="stacking_wall_hybrid_514.png" alt="hybrid map, 514">
 <figcaption>Line spectrum 514: measured dI/dV(V, x), the local approximation and the hybrid, with their bias
@@ -280,12 +291,12 @@ amplitude of the stack at s(x_tip) at the bias where the flat-band peak is measu
 wall model is solved once per tip position (cell 300 nm, k_y step 0.002 Å⁻¹, 6 meV
 broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
 without and with the bump (the energy grid of the peak is 2.5 meV; the centroid of the peak resolves below that);
-the largest change the bump makes to the peak centroid is 0.5 mV (514), 0.9 mV (940), against a measured bend of 35 to 55 mV. Within
-the self-consistent model the tip's own potential does not move the flat band at the wall; the bend it leaves
-unexplained is not a tip effect that the local approximation missed.</p>
+the largest change the bump makes to the peak centroid is 7.3 mV (514), 11.4 mV (940), against a measured bend of 35 to 55 mV. The k·p flat band follows 39 to 80 % of the top-layer bump, more on the (+⁵) side, where the flat-band state lives on the top layer, than inside the wall. At the position of the measured wall spectrum (-4.9 nm from the wall centre in 514, -3.1 nm in 940) the bump shifts the centroid by +3.6 and -6.2 mV, so the hybrid bends by +22 mV without and about +26 mV with the tip's own field in 514 (measured +34 mV), -15 and -21 mV in 940 (measured -53 mV). The tip's field adds to the bend in the measured direction in both lines, 16 % (514) and 41 % (940) of the far-field part, and the sum, 77 % and 40 % of the measured bend, is close to what the local approximation gives with the tip in it. The tip is a real but minor part of the bend in this model, not the missing one.
+(Before the layer-order correction the bump sat on the bottom layer and moved the peak by at most 2.5 mV, which was
+read as the tip not moving the flat band at all.)</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change of the maximum</th><th>change of the centroid</th></tr>
-<tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+5 meV</td><td colspan="3">flat-band peak faded (height below 15 % of the far value)</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+6 meV</td><td>+33 / +33 mV</td><td>+0.0 mV</td><td>+0.4 mV</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7 meV</td><td>+33 / +33 mV</td><td>+0.0 mV</td><td>+0.5 mV</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9 meV</td><td>+33 / +33 mV</td><td>+0.0 mV</td><td>+0.5 mV</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+9 meV</td><td>+30 / +30 mV</td><td>+0.0 mV</td><td>+0.4 mV</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-9 meV</td><td colspan="3">flat-band peak faded (height below 15 % of the far value)</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-9 meV</td><td>-35 / -35 mV</td><td>+0.0 mV</td><td>-0.4 mV</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-12 meV</td><td>-32 / -35 mV</td><td>-2.5 mV</td><td>-0.9 mV</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-14 meV</td><td>-32 / -32 mV</td><td>+0.0 mV</td><td>-0.7 mV</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-15 meV</td><td>-30 / -30 mV</td><td>+0.0 mV</td><td>-0.3 mV</td></tr>
+<tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+5 meV</td><td colspan="3">flat-band peak faded (height below 15 % of the far value)</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+6 meV</td><td>+45 / +48 mV</td><td>+2.5 mV</td><td>+3.0 mV</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7 meV</td><td>+45 / +48 mV</td><td>+2.5 mV</td><td>+4.4 mV</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9 meV</td><td>+43 / +48 mV</td><td>+5.0 mV</td><td>+6.0 mV</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+9 meV</td><td>+38 / +45 mV</td><td>+7.5 mV</td><td>+7.3 mV</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-9 meV</td><td colspan="3">flat-band peak faded (height below 15 % of the far value)</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-9 meV</td><td>-50 / -52 mV</td><td>-2.5 mV</td><td>-3.5 mV</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-12 meV</td><td>-47 / -52 mV</td><td>-5.0 mV</td><td>-6.3 mV</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-14 meV</td><td>-42 / -52 mV</td><td>-10.0 mV</td><td>-9.0 mV</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-15 meV</td><td>-37 / -47 mV</td><td>-10.0 mV</td><td>-11.4 mV</td></tr>
 </table></div>
 <figure><img src="stacking_wall_bump.png" alt="top-layer LDOS under the tip with and without the bump">
 <figcaption>Top-layer LDOS under the tip for the hybrid without (blue) and with (orange) the tip-induced bump at
@@ -304,7 +315,7 @@ reference serves all stacks: the fixed charge per layer makes the (+⁵) stack n
 the (+⁴−) stack, joined to it, shares that Fermi level and the gate; its top-layer potential far from the wall comes
 out at +30 meV (514) and -47 meV (940). The local approximation, with its
 own Fermi level per stack and the engine's slightly different layer charges, placed the (+⁴−)-side potentials a few meV
-away, which is why the tip-free k·p peaks below sit about 5 mV from those of the hybrid. The tip sits at the
+away, which is why the tip-free k·p peaks of the table sit 5.0 to 7.5 mV below those of the hybrid. The tip sits at the
 bias of the measured wall peak, +56 mV (514) and -85 mV (940), and was placed
 at 19 positions across the wall; a solve has about 246 thousand unknowns and takes
 18 s (Newton with algebraic-multigrid conjugate gradients).</p>
@@ -319,12 +330,14 @@ footprint, which smooths the kinks of the local curve where the top-layer densit
 and reaches into the weakly screening (+⁴−) region, but the result stays a few-meV effect. (The engine's local-approximation sweeps differ from the uniform-stack solves of the same code by -6 to +169 %: their fixed charge per layer differs by 20 % in the top layer, and the bending scales with the inverse density of states at E<sub>F</sub>, which on the flank of the flat band changes by about 20 % per meV of Fermi-level position. That sensitivity is a property of the rigid-band model, not of the geometry.) The tip-induced part of the top-layer potential with
 the tip at the wall centre has a full width at half maximum of 10 nm (514; 4 nm towards
 (+⁴−), 5 nm towards (+⁵)) against the 12.5 nm of the Gaussian bump used above. Third, fed into the
-k·p wall model in place of the Gaussian bump, the maximum of the k·p flat-band peak under the tip moves by at most 2.5 mV (its energy grid is 2.5 mV) and its centroid by at most 0.8 mV. The conclusion of the local approximation stands: the
-self-consistent tip-induced band bending at the flat-band bias is a few meV also when the lateral problem is solved,
-and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
+k·p wall model in place of the Gaussian bump, the maximum of the k·p flat-band peak under the tip moves by at most 7.5 mV (its energy grid is 2.5 mV) and its centroid by at most 9.3 mV, against 11.4 mV for the Gaussian bump at the same positions: the bump was an adequate stand-in for the lateral tip potential. The conclusion of the local approximation
+stands: with the lateral problem solved, the self-consistent tip-induced bending of the top layer at the bias of the
+wall peak is 4 to 14 meV at the k·p positions, it moves the flat band under the tip
+by up to 9 mV in the measured direction, and the measured 35 to 55 mV bend is not a tip-gating effect
+of this model.</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: uniform / lateral</th><th>layer 2: uniform / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
-<tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+4.1 / +4.5 meV</td><td>+1.9 / +2.1 meV</td><td>flat-band peak faded</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+5.6 / +6.1 meV</td><td>+2.7 / +2.9 meV</td><td>+28 / +28 mV (centroid +0.3)</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7.7 / +7.9 meV</td><td>+3.8 / +3.9 meV</td><td>+28 / +28 mV (centroid +0.4)</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9.0 / +8.8 meV</td><td>+4.6 / +4.5 meV</td><td>+28 / +28 mV (centroid +0.4)</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+8.8 / +8.6 meV</td><td>+4.7 / +4.6 meV</td><td>+28 / +28 mV (centroid +0.3)</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-5.8 / -5.9 meV</td><td>-2.8 / -2.9 meV</td><td>flat-band peak faded</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-5.2 / -5.6 meV</td><td>-2.6 / -2.8 meV</td><td>-37 / -40 mV (centroid -0.8)</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-4.4 / -6.9 meV</td><td>-2.4 / -3.7 meV</td><td>-37 / -37 mV (centroid -0.5)</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-10.9 / -11.2 meV</td><td>-6.0 / -6.2 meV</td><td>-35 / -37 mV (centroid -0.7)</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-14.2 / -13.6 meV</td><td>-8.1 / -7.8 meV</td><td>-35 / -35 mV (centroid -0.5)</td></tr>
+<tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+4.1 / +4.5 meV</td><td>+1.9 / +2.1 meV</td><td>flat-band peak faded</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+5.6 / +6.1 meV</td><td>+2.7 / +2.9 meV</td><td>+40 / +43 mV (centroid +3.1)</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7.7 / +7.9 meV</td><td>+3.8 / +3.9 meV</td><td>+38 / +43 mV (centroid +4.2)</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9.0 / +8.8 meV</td><td>+4.6 / +4.5 meV</td><td>+38 / +43 mV (centroid +5.4)</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+8.8 / +8.6 meV</td><td>+4.7 / +4.6 meV</td><td>+33 / +38 mV (centroid +6.3)</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-5.8 / -5.9 meV</td><td>-2.8 / -2.9 meV</td><td>flat-band peak faded</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-5.2 / -5.6 meV</td><td>-2.6 / -2.8 meV</td><td>-55 / -60 mV (centroid -3.5)</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-4.4 / -6.9 meV</td><td>-2.4 / -3.7 meV</td><td>-55 / -60 mV (centroid -4.3)</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-10.9 / -11.2 meV</td><td>-6.0 / -6.2 meV</td><td>-47 / -55 mV (centroid -6.3)</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-14.2 / -13.6 meV</td><td>-8.1 / -7.8 meV</td><td>-42 / -50 mV (centroid -9.3)</td></tr>
 </table></div>
 <figure><img src="stacking_wall_lateral.png" alt="lateral solve: layer potentials, apex bending and k.p peak against the tip position">
 <figcaption>Lateral solve. Left: layer potentials along the line without the tip (blue) and the top layer with the

@@ -311,6 +311,37 @@ def bump_text(states, img_prefix=""):
                       and abs(r["peak"] - v["settings"]["E_fb"]) <= 0.06), default=0.0)
               for t, v in nums.items()}
     worst = ", ".join(f"{1e3 * e:.1f} mV ({t})" for t, e in extras.items())
+    # fraction of the top-layer bump that the flat band follows, and the bend at the measured wall position
+    alive = {t: [r for r in v["rows"] if r.get("dcentroid") is not None and abs(r["bump"]) > 1e-3
+                 and r["height"] >= 0.15 * max(q["height"] for q in v["rows"])
+                 and abs(r["peak"] - v["settings"]["E_fb"]) <= 0.06] for t, v in nums.items()}
+    follow = [r["dcentroid"] / r["bump"] for rows in alive.values() for r in rows]
+    at_wall = []
+    for t, v in nums.items():
+        hn = hybrid_numbers(t, states[t])
+        if "hybrid" not in hn or not alive[t]:
+            continue
+        xw = states[t]["settings"]["x_wall"] - v["settings"]["x0"]
+        rows = sorted(alive[t], key=lambda r: r["x"])
+        dc = float(np.interp(xw, [r["x"] for r in rows], [r["dcentroid"] for r in rows]))
+        far, meas = hn["hybrid"] - hn["E_fb"], hn["meas"] - hn["E_fb"]
+        at_wall.append(dict(t=t, xw=xw, dc=dc, far=far, total=far + dc, meas=meas))
+    wall_txt = ""
+    if len(at_wall) == 2:
+        p, q = at_wall
+        wall_txt = (f" At the position of the measured wall spectrum ({p['xw']:+.1f} nm from the wall centre in {p['t']}, "
+                    f"{q['xw']:+.1f} nm in {q['t']}) the bump shifts the centroid by {1e3 * p['dc']:+.1f} and "
+                    f"{1e3 * q['dc']:+.1f} mV, so the hybrid bends by {1e3 * p['far']:+.0f} mV without and about "
+                    f"{1e3 * p['total']:+.0f} mV with the tip's own field in {p['t']} (measured {1e3 * p['meas']:+.0f} mV), "
+                    f"{1e3 * q['far']:+.0f} and {1e3 * q['total']:+.0f} mV in {q['t']} (measured {1e3 * q['meas']:+.0f} mV). "
+                    f"The tip's field adds to the bend in the measured direction in both lines, "
+                    f"{100 * p['dc'] / p['far']:.0f} % ({p['t']}) and {100 * q['dc'] / q['far']:.0f} % ({q['t']}) of the "
+                    f"far-field part, and the sum, {100 * p['total'] / p['meas']:.0f} % and {100 * q['total'] / q['meas']:.0f} % "
+                    f"of the measured bend, is close to what the local approximation gives with the tip in it. The tip is a "
+                    f"real but minor part of the bend in this model, not the missing one.")
+    follow_txt = (f" The k·p flat band follows {100 * min(follow):.0f} to {100 * max(follow):.0f} % of the top-layer bump, "
+                  f"more on the (+⁵) side, where the flat-band state lives on the top layer, than inside the wall."
+                  if follow else "")
     return f"""<h3>The tip-induced bump</h3>
 <p>The Poisson solver also gives the potential under the apex, U0,l(V) − U_far,l, which moves with the tip. It is
 added to the hybrid as a Gaussian bump of width w = √(2Rd) = {s0['spot']:.1f} nm centred on the tip, with the
@@ -318,9 +349,9 @@ amplitude of the stack at s(x_tip) at the bias where the flat-band peak is measu
 wall model is solved once per tip position (cell {s0['length']:.0f} nm, k_y step {s0['dky']} Å⁻¹, {1e3 * s0['sigma']:.0f} meV
 broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
 without and with the bump (the energy grid of the peak is 2.5 meV; the centroid of the peak resolves below that);
-the largest change the bump makes to the peak centroid is {worst}, against a measured bend of 35 to 55 mV. Within
-the self-consistent model the tip's own potential does not move the flat band at the wall; the bend it leaves
-unexplained is not a tip effect that the local approximation missed.</p>
+the largest change the bump makes to the peak centroid is {worst}, against a measured bend of 35 to 55 mV.{follow_txt}{wall_txt}
+(Before the layer-order correction the bump sat on the bottom layer and moved the peak by at most 2.5 mV, which was
+read as the tip not moving the flat band at all.)</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change of the maximum</th><th>change of the centroid</th></tr>
 {''.join(table)}
@@ -425,6 +456,29 @@ def lateral_text(states, img_prefix=""):
     worst_txt = (f"the maximum of the k·p flat-band peak under the tip moves by at most {1e3 * worst:.1f} mV (its energy grid is "
                  f"2.5 mV) and its centroid by at most {1e3 * worst_c:.1f} mV"
                  if worst is not None and worst_c is not None else "the k·p spectra are not finished")
+    # tip-free k.p peaks of the lateral potentials against those of the hybrid (bump runs without the bump), and the
+    # Gaussian bump's largest centroid change, at the same positions
+    offs, bump_c = [], []
+    for t, v in nums.items():
+        bn = bump_numbers(t)
+        if bn is None:
+            continue
+        by_x = {r["x"]: r for r in bn["rows"]}
+        for r in kp_rows:
+            if r in v["rows"] and r["x"] in by_x and by_x[r["x"]]["peak_ref"] is not None:
+                offs.append(r["peak_ref"] - by_x[r["x"]]["peak_ref"])
+                if by_x[r["x"]].get("dcentroid") is not None:
+                    bump_c.append(abs(by_x[r["x"]]["dcentroid"]))
+    if offs and (all(o < 0 for o in offs) or all(o > 0 for o in offs)):
+        offs_txt = (f"{1e3 * min(map(abs, offs)):.1f} to {1e3 * max(map(abs, offs)):.1f} mV "
+                    f"{'below' if offs[0] < 0 else 'above'}")
+    elif offs:
+        offs_txt = f"within {1e3 * max(map(abs, offs)):.1f} mV of"
+    else:
+        offs_txt = "a few mV from"
+    bump_txt = (f", against {1e3 * max(bump_c):.1f} mV for the Gaussian bump at the same positions: the bump was an adequate "
+                f"stand-in for the lateral tip potential" if bump_c else "")
+    apex = [abs(r["dU"][0]) for v in nums.values() for r in v["rows"] if r["peak"] is not None]
     abs_lat = max(abs(r["dU"][0] - r["dU_uniform"][0]) for v in nums.values() for r in v["rows"] if r["dU_uniform"] is not None)
     return f"""<h3>The lateral problem</h3>
 <p>The local approximation was dropped last. The Poisson equation was solved in three dimensions with the wall in
@@ -439,7 +493,7 @@ reference serves all stacks: the fixed charge per layer makes the (+⁵) stack n
 the (+⁴−) stack, joined to it, shares that Fermi level and the gate; its top-layer potential far from the wall comes
 out at {1e3 * a['sf_top']:+.0f} meV ({t1}) and {1e3 * b['sf_top']:+.0f} meV ({t2}). The local approximation, with its
 own Fermi level per stack and the engine's slightly different layer charges, placed the (+⁴−)-side potentials a few meV
-away, which is why the tip-free k·p peaks below sit about 5 mV from those of the hybrid. The tip sits at the
+away, which is why the tip-free k·p peaks of the table sit {offs_txt} those of the hybrid. The tip sits at the
 bias of the measured wall peak, {1e3 * sa['bias']:+.0f} mV ({t1}) and {1e3 * sb['bias']:+.0f} mV ({t2}), and was placed
 at {a['n_positions']} positions across the wall; a solve has about {a['nodes'] / 1e3:.0f} thousand unknowns and takes
 {a['seconds']:.0f} s (Newton with algebraic-multigrid conjugate gradients).</p>
@@ -454,9 +508,11 @@ footprint, which smooths the kinks of the local curve where the top-layer densit
 and reaches into the weakly screening (+⁴−) region, but the result stays a few-meV effect.{engine_txt} The tip-induced part of the top-layer potential with
 the tip at the wall centre has a full width at half maximum of {a['fwhm']:.0f} nm ({t1}; {a['left']:.0f} nm towards
 (+⁴−), {a['right']:.0f} nm towards (+⁵)) against the 12.5 nm of the Gaussian bump used above. Third, fed into the
-k·p wall model in place of the Gaussian bump, {worst_txt}. The conclusion of the local approximation stands: the
-self-consistent tip-induced band bending at the flat-band bias is a few meV also when the lateral problem is solved,
-and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
+k·p wall model in place of the Gaussian bump, {worst_txt}{bump_txt}. The conclusion of the local approximation
+stands: with the lateral problem solved, the self-consistent tip-induced bending of the top layer at the bias of the
+wall peak is {1e3 * min(apex):.0f} to {1e3 * max(apex):.0f} meV at the k·p positions, it moves the flat band under the tip
+by up to {1e3 * worst_c:.0f} mV in the measured direction, and the measured 35 to 55 mV bend is not a tip-gating effect
+of this model.</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: uniform / lateral</th><th>layer 2: uniform / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
 {''.join(table)}

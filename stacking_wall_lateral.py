@@ -326,7 +326,7 @@ def plot():
         alive = [r for r in pts if r["height"] > 0.15 * h_max and abs(r["peak"] - E_fb) < 0.06]
         if alive:
             ax.plot([r["x"] + x0 for r in alive], [1e3 * r["peak"] for r in alive], "^:", color="#605d57", ms=4,
-                    label="Gaussian bump (earlier)")
+                    label="Gaussian bump (hybrid + bump)")
         ax.axhline(1e3 * E_fb, color="#605d57", lw=0.6, ls=":")
         ax.axvline(x0, color="#605d57", lw=0.6, ls="--")
         ax.set(xlabel="tip position (nm)", ylabel="flat-band peak (mV, k.p energy)", title="apparent flat-band energy under the tip")

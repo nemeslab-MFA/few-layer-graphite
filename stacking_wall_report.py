@@ -17,6 +17,7 @@ import glob
 import html
 import json
 import os
+import re
 
 import numpy as np
 
@@ -1828,13 +1829,28 @@ line spectra 514 and 940 are not part of the repository.</footer>
 """
 
 
+def number_figures(body):
+    """Number the figures in document order: id="figN" on each and "Fig. N." at the start of its caption."""
+    n = 0
+
+    def repl(m):
+        nonlocal n
+        n += 1
+        fig = m.group(0).replace("<figure>", f'<figure id="fig{n}">', 1)
+        if "<figcaption>" in fig:
+            return fig.replace("<figcaption>", f"<figcaption><b>Fig. {n}.</b> ", 1)
+        return fig.replace("</figure>", f"<figcaption><b>Fig. {n}.</b></figcaption></figure>")
+
+    return re.sub(r"<figure>.*?</figure>", repl, body, flags=re.S)
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--tags", nargs="+", default=["514", "940"])
     ap.add_argument("--out", default=os.path.join(EXAMPLES, "stacking_wall_report.html"))
     ap.add_argument("--page-only", default=None, metavar="PATH")
     args = ap.parse_args()
-    body = page(args.tags)
+    body = number_figures(page(args.tags))
     head, _, rest = body.partition("<main>")
     with open(args.out, "w") as fh:
         fh.write('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'

@@ -212,8 +212,7 @@ def hybrid_text(states, img_prefix=""):
     t1, t2 = list(nums)[:2]
     a, b = nums[t1], nums[t2]
     mv = lambda v: f"{1e3 * v:+.0f}"   # noqa: E731
-    return f"""<h2>Hybrid: the wall model with the Poisson potentials</h2>
-<p>The two calculations are complementary: the k·p wall model has the wall and its fringes but no electrostatics,
+    return f"""<p>The two calculations are complementary: the k·p wall model has the wall and its fringes but no electrostatics,
 the Poisson solver has the electrostatics but, being axisymmetric, no wall. The notebook
 <code>examples/stacking_wall_hybrid.ipynb</code> joins them: it reads the Poisson outputs, refers the far-field
 layer potentials of every stack to the common Fermi level, V<sub>l</sub> = U<sub>far,l</sub> − μ0, places them
@@ -287,6 +286,18 @@ def bump_numbers(tag):
     return {"settings": s, "rows": rows}
 
 
+def far_tip_shift(tag):
+    """Centroid shift of the (+5) flat-band peak by the tip at the measured (+5) peak bias, contact potential 0
+    (stacking_wall_cpot_sensitivity_TAG.json, tip 20 nm from the wall on the (+5) side), in eV; None if missing."""
+    path = os.path.join(EXAMPLES, f"stacking_wall_cpot_sensitivity_{tag}.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        runs = json.load(fh).get("runs", {})
+    a, b = runs.get("far_+0.000"), runs.get("far_none")
+    return (a["centroid"] - b["centroid"]) if (a and b) else None
+
+
 def bump_text(states, img_prefix=""):
     nums = {t: bump_numbers(t) for t in states}
     if any(v is None or not v["rows"] for v in nums.values()):
@@ -325,20 +336,25 @@ def bump_text(states, img_prefix=""):
         rows = sorted(alive[t], key=lambda r: r["x"])
         dc = float(np.interp(xw, [r["x"] for r in rows], [r["dcentroid"] for r in rows]))
         far, meas = hn["hybrid"] - hn["E_fb"], hn["meas"] - hn["E_fb"]
-        at_wall.append(dict(t=t, xw=xw, dc=dc, far=far, total=far + dc, meas=meas))
+        dcf = far_tip_shift(t)
+        at_wall.append(dict(t=t, xw=xw, dc=dc, dcf=dcf, far=far, meas=meas,
+                            net=(dc - dcf) if dcf is not None else None,
+                            total=(far + dc - dcf) if dcf is not None else None))
     wall_txt = ""
-    if len(at_wall) == 2:
+    if len(at_wall) == 2 and all(r["net"] is not None for r in at_wall):
         p, q = at_wall
         wall_txt = (f" At the position of the measured wall spectrum ({p['xw']:+.1f} nm from the wall centre in {p['t']}, "
                     f"{q['xw']:+.1f} nm in {q['t']}) the bump shifts the centroid by {1e3 * p['dc']:+.1f} and "
-                    f"{1e3 * q['dc']:+.1f} mV, so the hybrid bends by {1e3 * p['far']:+.0f} mV without and about "
+                    f"{1e3 * q['dc']:+.1f} mV. The bend, however, is measured against the (+⁵) peak, which the tip also "
+                    f"shifts, at its own bias: by {1e3 * p['dcf']:+.1f} mV ({p['t']}) and {1e3 * q['dcf']:+.1f} mV ({q['t']}) "
+                    f"with the tip 20 nm into the (+⁵) side (<code>stacking_wall_cpot_sensitivity.py</code>, δ = 0). There "
+                    f"the flat band is a top-layer state and follows the whole bump; inside the wall it follows about half. "
+                    f"The tip's contribution to the bend is the difference, {1e3 * p['net']:+.1f} mV ({p['t']}) and "
+                    f"{1e3 * q['net']:+.1f} mV ({q['t']}): the hybrid bends by {1e3 * p['far']:+.0f} mV without and "
                     f"{1e3 * p['total']:+.0f} mV with the tip's own field in {p['t']} (measured {1e3 * p['meas']:+.0f} mV), "
                     f"{1e3 * q['far']:+.0f} and {1e3 * q['total']:+.0f} mV in {q['t']} (measured {1e3 * q['meas']:+.0f} mV). "
-                    f"The tip's field adds to the bend in the measured direction in both lines, "
-                    f"{100 * p['dc'] / p['far']:.0f} % ({p['t']}) and {100 * q['dc'] / q['far']:.0f} % ({q['t']}) of the "
-                    f"far-field part, and the sum, {100 * p['total'] / p['meas']:.0f} % and {100 * q['total'] / q['meas']:.0f} % "
-                    f"of the measured bend, is close to what the local approximation gives with the tip in it. The tip is a "
-                    f"real but minor part of the bend in this model, not the missing one.")
+                    f"In this model the tip moves the flat band nearly as much far from the wall as at it, and its own "
+                    f"field is not what bends the band.")
     follow_txt = (f" The k·p flat band follows {100 * min(follow):.0f} to {100 * max(follow):.0f} % of the top-layer bump, "
                   f"more on the (+⁵) side, where the flat-band state lives on the top layer, than inside the wall."
                   if follow else "")
@@ -350,8 +366,9 @@ wall model is solved once per tip position (cell {s0['length']:.0f} nm, k_y step
 broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
 without and with the bump (the energy grid of the peak is 2.5 meV; the centroid of the peak resolves below that);
 the largest change the bump makes to the peak centroid is {worst}, against a measured bend of 35 to 55 mV.{follow_txt}{wall_txt}
-(Before the layer-order correction the bump sat on the bottom layer and moved the peak by at most 2.5 mV, which was
-read as the tip not moving the flat band at all.)</p>
+(Before the layer-order correction the bump sat on the bottom layer and moved the peak by at most 2.5 mV; the
+version of 2026-11-10 then added the shift at the wall to the bend without subtracting the shift of the (+⁵) reference,
+which overstated the tip's contribution as +4 and −6 mV.)</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change of the maximum</th><th>change of the centroid</th></tr>
 {''.join(table)}
@@ -362,20 +379,46 @@ each tip position, and the resulting flat-band peak against the tip position.</f
 """
 
 
-def cpot_sensitivity_text(states, img_prefix=""):
-    """Subsection: how the tip-induced part of the wall bend depends on the tip work function, and why the
-    fits put the offset at zero (stacking_wall_cpot_sensitivity.py)."""
-    data = {}
+def cpot_numbers(states):
+    """Per line: the model bend against the work-function offset delta (stacking_wall_cpot_sensitivity.py),
+    its slope near zero and the offset that would give the measured bend; None if a file is missing."""
+    lines = {}
     for t in states:
         path = os.path.join(EXAMPLES, f"stacking_wall_cpot_sensitivity_{t}.json")
         if not os.path.exists(path):
-            return ""
+            return None
         with open(path) as fh:
-            data[t] = json.load(fh)
-        if not data[t].get("summary"):
-            return ""
+            st = json.load(fh)
+        if not st.get("summary"):
+            return None
+        s, rows = st["settings"], sorted(st["summary"], key=lambda r: r["delta"])
+        d = np.array([r["delta"] for r in rows])
+        tot = np.array([r["total"] for r in rows])
+        tip = np.array([r["tip"] for r in rows])
+        meas = s["measured_bend"]
+        near = np.abs(d) <= 0.1 + 1e-9
+        slope = float(np.polyfit(d[near], tot[near], 1)[0])                       # eV per eV
+        # offset that would give the measured bend (interpolated where the curve crosses it; no extrapolation),
+        # and the largest bend in the measured direction within the computed range
+        need, extrap = None, False
+        for i in range(len(d) - 1):
+            if (tot[i] - meas) * (tot[i + 1] - meas) <= 0 and tot[i] != tot[i + 1]:
+                need = float(d[i] + (meas - tot[i]) * (d[i + 1] - d[i]) / (tot[i + 1] - tot[i]))
+        k = int(np.argmax(np.sign(meas) * tot))
+        z = next(r for r in rows if abs(r["delta"]) < 1e-9)
+        lines[t] = dict(s=s, slope=slope, need=need, extrap=extrap, zero=z, rows=rows, d=d, tot=tot, tip=tip, meas=meas,
+                        best=float(tot[k]), best_delta=float(d[k]))
+    return lines
+
+
+def cpot_sensitivity_text(states, img_prefix=""):
+    """Subsection: how the tip-induced part of the wall bend depends on the tip work function, and why the
+    fits put the offset at zero (stacking_wall_cpot_sensitivity.py)."""
+    lines = cpot_numbers(states)
+    if lines is None:
+        return ""
     mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
-    t1, t2 = list(data)[:2]
+    t1, t2 = list(lines)[:2]
     # evidence for CPot = 0
     scan = {}
     for t, st in states.items():
@@ -392,26 +435,7 @@ def cpot_sensitivity_text(states, img_prefix=""):
     a = bend_asymmetry(states)
     asym_txt = (f"; and if one tip recorded both lines, the asymmetry of the two bends gives {mv(a['C'])} meV "
                 f"({mv(a['pos'][0])} to {mv(a['pos'][1])} meV within half a bias step)" if a else "")
-    # sensitivity
-    lines, rows_html = {}, []
-    for t, st in data.items():
-        s, rows = st["settings"], sorted(st["summary"], key=lambda r: r["delta"])
-        d = np.array([r["delta"] for r in rows])
-        tot = np.array([r["total"] for r in rows])
-        tip = np.array([r["tip"] for r in rows])
-        meas = s["measured_bend"]
-        slope = float(np.polyfit(d[np.abs(d) <= 0.1 + 1e-9], tot[np.abs(d) <= 0.1 + 1e-9], 1)[0])     # eV per eV
-        # offset that would give the measured bend: interpolate, or extrapolate from the two end points
-        need, extrap = None, False
-        for i in range(len(d) - 1):
-            if (tot[i] - meas) * (tot[i + 1] - meas) <= 0 and tot[i] != tot[i + 1]:
-                need = float(d[i] + (meas - tot[i]) * (d[i + 1] - d[i]) / (tot[i + 1] - tot[i]))
-        if need is None:
-            j = (0, 1) if abs(tot[0] - meas) < abs(tot[-1] - meas) else (-2, -1)
-            k = (tot[j[1]] - tot[j[0]]) / (d[j[1]] - d[j[0]])
-            need, extrap = (float(d[j[0]] + (meas - tot[j[0]]) / k) if k != 0 else None), True
-        z = next(r for r in rows if abs(r["delta"]) < 1e-9)
-        lines[t] = dict(s=s, slope=slope, need=need, extrap=extrap, zero=z, rows=rows, d=d, tot=tot, tip=tip, meas=meas)
+    rows_html = []
     for i, r1 in enumerate(lines[t1]["rows"]):
         r2 = next((r for r in lines[t2]["rows"] if abs(r["delta"] - r1["delta"]) < 1e-9), None)
         if r2 is None:
@@ -422,9 +446,10 @@ def cpot_sensitivity_text(states, img_prefix=""):
 
     def need_txt(t):
         v = lines[t]
-        if v["need"] is None:
-            return "no offset in reach"
-        return f"{'about ' if v['extrap'] else ''}{mv(v['need'])} meV{' (extrapolated)' if v['extrap'] else ''}"
+        if v["need"] is not None:
+            return f"δ = {mv(v['need'])} meV"
+        return (f"no offset in the computed range (the largest bend is {mv(v['best'])} mV, at δ = {mv(v['best_delta'])} meV, "
+                f"{100 * v['best'] / v['meas']:.0f} % of the measured)")
 
     a1, a2 = lines[t1], lines[t2]
     far_shift = {t: next((r["dc_far"] for r in v["rows"] if abs(r["delta"] + 0.2) < 1e-9), None) for t, v in lines.items()}
@@ -443,14 +468,17 @@ centroid shift at the wall minus that on the (+⁵) side; added to the far-field
 ({mv(a1['s']['far_field_bend'])} mV in {t1}, {mv(a2['s']['far_field_bend'])} mV in {t2}) it gives the model bend in the
 table and the figure. Near δ = 0 the bend changes by {1e2 * a1['slope']:.0f} mV ({t1}) and {1e2 * a2['slope']:.0f} mV
 ({t2}) per 100 meV of offset, so the fitted ±50 meV moves it by at most {abs(50 * a1['slope']):.0f} and
-{abs(50 * a2['slope']):.0f} mV. The measured bend ({mv(a1['meas'])} and {mv(a2['meas'])} mV) would need δ =
+{abs(50 * a2['slope']):.0f} mV. The measured bend ({mv(a1['meas'])} and {mv(a2['meas'])} mV) is reached with
 {need_txt(t1)} in {t1} and {need_txt(t2)} in {t2}{': offsets of opposite sign, so no single tip gives both' if opposite else ''}.
+The tip moves the (+⁵) reference with the wall: there the flat band is a top-layer state and follows the whole
+tip-induced potential, inside the wall it follows about half, so an offset that pulls the wall peak further also
+pulls the reference, and the bend changes much less than either peak.
 The lines were recorded on different days, possibly with different tips, but each line's own (+⁵) fit holds its tip
 near zero: the residual at −0.2 / +0.2 eV is {res02[t1][0]:.2f} / {res02[t1][1]:.2f} in {t1} and
 {res02[t2][0]:.2f} / {res02[t2][1]:.2f} in {t2}, against {scan[t1].get(0.0):.2f} and {scan[t2].get(0.0):.2f} at zero.
-{f"An offset of −0.2 eV would also move the (+⁵) peak itself under the tip by {mv(far_shift[t1])} mV ({t1}) and {mv(far_shift[t2])} mV ({t2}) at fixed doping. " if None not in far_shift.values() else ""}A
-Pt tip at its vacuum work-function difference (+1.05 eV) would bend the 940 band up, the wrong way. The tip-induced
-share of the wall bend is small because the work functions are equal, and that equality is what the spectra give.</p>
+{f"An offset of −0.2 eV would also move the (+⁵) peak itself under the tip by {mv(far_shift[t1])} mV ({t1}) and {mv(far_shift[t2])} mV ({t2}) at fixed doping. " if None not in far_shift.values() else ""}The
+vacuum work-function difference of a Pt tip (+1.05 eV) lies far outside both the computed range and what the spectra
+allow.</p>
 <div class="tablewrap"><table>
 <tr><th>δ</th><th>{t1}: top-layer bump, wall / (+⁵)</th><th>{t1}: tip part</th><th>{t1}: bend</th>
 <th>{t2}: top-layer bump, wall / (+⁵)</th><th>{t2}: tip part</th><th>{t2}: bend</th></tr>
@@ -612,8 +640,8 @@ the tip at the wall centre has a full width at half maximum of {a['fwhm']:.0f} n
 k·p wall model in place of the Gaussian bump, {worst_txt}{bump_txt}. The conclusion of the local approximation
 stands: with the lateral problem solved, the self-consistent tip-induced bending of the top layer at the bias of the
 wall peak is {1e3 * min(apex):.0f} to {1e3 * max(apex):.0f} meV at the k·p positions, it moves the flat band under the tip
-by up to {1e3 * worst_c:.0f} mV in the measured direction, and the measured 35 to 55 mV bend is not a tip-gating effect
-of this model.</p>
+by up to {1e3 * worst_c:.0f} mV in the measured direction, most of which it also does to the (+⁵) reference at its own
+bias, and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: uniform / lateral</th><th>layer 2: uniform / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
 {''.join(table)}
@@ -1124,8 +1152,7 @@ def tibb_text(states, img_prefix=""):
     rows = {t: shifts(t) for t in n}
     t1, t2 = list(n)[:2]
     a, b = rows[t1], rows[t2]
-    return f"""{workfunction_text(states)}
-<p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
+    return f"""<p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
 simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
 {a[1]:+.0f} mV in spectrum {t1} (measured {a[0]:+.0f} mV) and down by {b[1]:+.0f} mV in spectrum {t2}
 (measured {b[0]:+.0f} mV), so the sign follows the filling as observed, with {100 * a[1] / a[0]:.0f} % and
@@ -1163,48 +1190,22 @@ because in the γ0/γ1 model the top layer keeps most of its flat-band weight un
 top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption></figure>
 <figure><img src="{img_prefix}stacking_wall_tibb_map_940.png" alt="simulated line spectrum across the wall, 940">
 <figcaption>Line spectrum 940, the same.</figcaption></figure>
-</div>
-{hybrid_text(states, img_prefix)}
-{bump_text(states, img_prefix)}
-{cpot_sensitivity_text(states, img_prefix)}
-{lateral_text(states, img_prefix)}
-{epsfit_text(img_prefix)}
-{polar_series_text(img_prefix)}
-{eps26_fit_text(img_prefix)}
-{eps26_series_text(img_prefix)}
-{eps26_peaks_series_text(img_prefix)}
-<p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
-bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
-states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and
-only on the (+⁴−) stack itself does the tip reach 15 to 30 meV of bending. {reading_lateral(states)}The fit of the (+⁵) spectra leaves the contact
-potential within about ±0.05 eV of zero, consistent with the sign reversal of the bend between the two
-measurements.</p>"""
+</div>"""
 
 
-def reading_lateral(states):
-    """One sentence of the reading paragraph: the lateral problem, solved or still open."""
-    nums = {t: lateral_numbers(t) for t in states}
-    if any(v is None for v in nums.values()):
-        return ("What the local approximation cannot hold is the tip's field reaching across the wall into the (+⁴−) "
-                "region, where screening is weak, while the tip sits over the fading flat band; that lateral problem, "
-                "a Poisson solution with the wall in it, is the natural next step and is outside the axisymmetric engine. ")
-    devs = sorted((abs(r["dU"][0] - (r["dU_uniform"] or r["dU_local"])[0]) for v in nums.values() for r in v["rows"]), reverse=True)
-    return (f"The tip's field reaching across the wall into the weakly screening (+⁴−) region was then checked with the "
-            f"three-dimensional solve: it changes the bending under the apex by at most {1e3 * devs[0]:.1f} meV (at one position "
-            f"of 940 where the local response has a kink; {1e3 * devs[1]:.1f} meV or less elsewhere), so the lateral "
-            "problem does not rescue the tip-gating explanation either. ")
-
-
-def tibb_section(tags, img_prefix=""):
-    """Section on the tip-induced band-bending calculation (stacking_wall_tibb.py), or ''."""
+def load_states(tags):
+    """stacking_wall_tibb_TAG.json of every line that has one."""
     states = {}
     for t in tags:
         path = os.path.join(EXAMPLES, f"stacking_wall_tibb_{t}.json")
         if os.path.exists(path):
             with open(path) as fh:
                 states[t] = json.load(fh)
-    if not states:
-        return ""
+    return states
+
+
+def tibb_setup_text(states, img_prefix=""):
+    """The self-consistent model and the fit of the (+5) spectra (stacking_wall_tibb.py)."""
     rows = []
     fmt = lambda d, k, f="%+.0f", scale=1e3: (f % (scale * d[k])) if k in d else "–"   # noqa: E731
     for t, st in states.items():
@@ -1217,38 +1218,270 @@ def tibb_section(tags, img_prefix=""):
             f"<td>{fmt(n, 'rg_bend')} / {fmt(n, 'wall_bend')} / {fmt(n, 'sf_bend')} meV</td>"
             f"<td>{fmt(n, 'rg_residual', '%.2f', 1)} / {fmt(n, 'wall_residual', '%.2f', 1)} / {fmt(n, 'sf_residual', '%.2f', 1)}</td></tr>")
     s0 = next(iter(states.values()))["settings"]
-    return f"""
-<h2>Self-consistent tip-induced band bending (bandbending engine)</h2>
-<p>Three laterally uniform six-layer stacks under the same tip, each solved self-consistently
-(Hartree + γ0/γ1 tight binding, <code>GrapheneMultilayer</code> of the
-<a href="https://github.com/nemeslab-MFA/bandbending">bandbending</a> engine): the (+⁵) stack far from the
-wall, the wall itself with the top dimer shared between the (+⁵) bond (weight 1 − s) and the (+⁴−) bond
-(weight s, s = {s0['s']:.2f} at the position of the bend), and the (+⁴−) stack. The wall Hamiltonian closes
-a bond loop whose flux is the phase of the structure factor, so it is evaluated with a complex Hamiltonian
-averaged over that phase (<code>WallTB</code> in <code>stacking_wall_tibb.py</code>; it reproduces the
-engine's end members exactly and a brute-force zone sum to 1 %). Tip radius {s0['radius']:.0f} nm,
-separation {s0['separation']:.1f} nm, barrier {s0['barrier']:.1f} eV, {s0['temperature']:.0f} K, Gaussian
-width {1e3 * s0['broadening']:.0f} meV of the tight-binding occupation and LDOS (the γ0/γ1 flat band is
-6 meV wide, the measured one 26 mV), lock-in {1e3 * s0['modulation']:.2f} mV; 90 nm SiO₂ over the
-grounded Si. The doping is set from the measured flat-band energy of the (+⁵) side (the isolated stack is
-neutral with E<sub>F</sub> that far from its flat band); the fixed charge per layer this implies is used
-unchanged for the wall and the (+⁴−) stack, and the tip contact potential W<sub>tip</sub> − W<sub>sample</sub>
-is the value, scanned in 0.1 eV steps, at which the simulated (+⁵) spectrum (<code>tunneling_spectrum</code>:
-frozen-potential term plus band-bending term) is closest to the measurement far from the wall, one scale
-factor free.</p>
+    return f"""<p>Laterally uniform six-layer stacks under the tip, each solved self-consistently (Poisson equation with
+Hartree + γ0/γ1 tight-binding layers, <code>GrapheneMultilayer</code> of the
+<a href="https://github.com/nemeslab-MFA/bandbending">bandbending</a> engine): the (+⁵) stack, the wall stack with the
+top dimer shared between the (+⁵) bond (weight 1 − s) and the (+⁴−) bond (weight s; s = {s0['s']:.2f} at the position of
+the measured wall spectrum), and the (+⁴−) stack. The wall Hamiltonian closes a bond loop whose flux is the phase of
+the structure factor, so it is evaluated with a complex Hamiltonian averaged over that phase (<code>WallTB</code> in
+<code>stacking_wall_tibb.py</code>; it reproduces the engine's end members exactly and a brute-force zone sum to
+1 %). Tip radius {s0['radius']:.0f} nm, separation {s0['separation']:.1f} nm, barrier {s0['barrier']:.1f} eV,
+{s0['temperature']:.0f} K, Gaussian width {1e3 * s0['broadening']:.0f} meV of the tight-binding occupation and LDOS (the
+γ0/γ1 flat band is 6 meV wide, the measured one 26 mV), lock-in {1e3 * s0['modulation']:.2f} mV; 90 nm SiO₂ over the
+grounded Si. The doping is set from the measured flat-band energy of the (+⁵) side (the isolated stack is neutral with
+E<sub>F</sub> that far from its flat band); the fixed charge per layer this implies is used unchanged for the wall and
+the (+⁴−) stack. The tip contact potential is the value, scanned in 0.1 eV steps, at which the simulated (+⁵)
+spectrum (<code>tunneling_spectrum</code>: frozen-potential term plus band-bending term) is closest to the
+measurement, one scale factor free.</p>
 <div class="tablewrap"><table>
 <tr><th>line spectrum</th><th>contact potential</th><th>E<sub>F</sub> − E<sub>CNP</sub></th><th>flat band (+⁵): measured / simulated</th><th>flat band at the wall: measured / simulated</th><th>U<sub>1</sub>(apex) − U<sub>1</sub>(far) at the peak: (+⁵) / wall / (+⁴−)</th><th>residual (+⁵) / wall / (+⁴−)</th></tr>
 {''.join(rows)}
 </table></div>
 <figure><img src="{img_prefix}stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
-<figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
-term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
-{tibb_text(states, img_prefix)}
+<figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential term) far
+on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
 """
+
+
+def status_numbers(states):
+    """Per line: measured bend at the wall spectrum and the model bends (eV), the tip's lever arm on the top
+    layer, the tip-induced parts, the work-function offset that would give the measured bend; and the largest
+    bends of the polarized stacks of 940."""
+    out = {}
+    for t, st in states.items():
+        s = st["settings"]
+        hn = hybrid_numbers(t, st)
+        E_fb = s["E_fb_measured"]
+        d = dict(E_fb=E_fb, V_wall=hn["meas"], meas=hn["meas"] - E_fb, s=s["s"], x_wall=s["x_wall"])
+        if "local" in hn and "local_far" in hn:
+            d["local"] = hn["local"] - hn["local_far"]
+        if "hybrid" in hn:
+            d["swmcc"] = hn["hybrid"] - E_fb
+        bn = bump_numbers(t)
+        if bn and bn["rows"]:
+            x0 = bn["settings"]["x0"]
+            h_max = max(r["height"] for r in bn["rows"])
+            rows = sorted([r for r in bn["rows"] if r.get("dcentroid") is not None and r["height"] >= 0.15 * h_max
+                           and abs(r["peak"] - E_fb) <= 0.06], key=lambda r: r["x"])
+            if rows:
+                xs = [r["x"] for r in rows]
+                d["tip_bump"] = float(np.interp(s["x_wall"] - x0, xs, [r["dcentroid"] for r in rows]))
+                d["bump_top"] = float(np.interp(s["x_wall"] - x0, xs, [r["bump"] for r in rows]))
+                d["lever"] = d["bump_top"] / bn["settings"]["bias"]
+        ln = lateral_numbers(t)
+        if ln:
+            x0 = ln["settings"]["x0"]
+            h = [r["height"] for r in ln["rows"] if r["height"] is not None]
+            rows = sorted([r for r in ln["rows"] if r.get("dcentroid") is not None and r["height"] >= 0.15 * max(h)
+                           and abs(r["peak"] - E_fb) <= 0.06], key=lambda r: r["x"])
+            if rows:
+                d["tip_lateral"] = float(np.interp(s["x_wall"] - x0, [r["x"] for r in rows], [r["dcentroid"] for r in rows]))
+        dcf = far_tip_shift(t)
+        if dcf is not None:
+            d["dcf"] = dcf
+            for k in ("tip_bump", "tip_lateral"):
+                if k in d:
+                    d[k + "_net"] = d[k] - dcf
+        out[t] = d
+    cp = cpot_numbers(states)
+    if cp:
+        for t, v in cp.items():
+            out[t]["need"], out[t]["need_extrap"] = v["need"], v["extrap"]
+            out[t]["wf_best"], out[t]["wf_best_delta"] = v["best"], v["best_delta"]
+            z = v["zero"]
+            out[t]["lever_far"] = z["bump_far"] / v["s"]["E_fb"]
+    pol = {}
+    for suf in ("", "_eps26_fb", "_eps26_peaks"):
+        n = polar_series_numbers(suf)
+        if n:
+            pol[suf] = n["state"]["extreme_polarized"] - n["state"]["far_polarized"]
+    return out, pol
+
+
+def _mv(v, nd=0):
+    return (f"{1e3 * v:+.{nd}f}" if v is not None else "–").replace("-", "−")
+
+
+def abstract_text(states):
+    nums, pol = status_numbers(states)
+    if len(nums) < 2:
+        return ""
+    up = next(t for t, v in nums.items() if v["E_fb"] > 0)
+    dn = next(t for t, v in nums.items() if v["E_fb"] < 0)
+    u, d = nums[up], nums[dn]
+    a = bend_asymmetry(states)
+    lev = [abs(v["lever"]) for v in nums.values() if "lever" in v]
+    tipb = all("tip_bump" in v for v in nums.values())
+    tipl = all("tip_lateral" in v for v in nums.values())
+    cp = cpot_numbers(states)
+    wf_txt = ""
+    if cp:
+        parts = []
+        for t in (up, dn):
+            v = cp[t]
+            parts.append(f"{_mv(v['need'])} meV in {t}" if v["need"] is not None else
+                         f"not in {t}, where the largest bend is {_mv(v['best'])} mV (at {_mv(v['best_delta'])} meV)")
+        wf_txt = (f"Changing the tip work function does not rescue the mechanism: between {_mv(min(cp[up]['d']))} and "
+                  f"{_mv(max(cp[up]['d']))} meV from the sample's the measured bend is reached " + " and ".join(parts) + ".")
+    tot = {t: v["swmcc"] + v["tip_bump_net"] for t, v in nums.items() if "swmcc" in v and "tip_bump_net" in v}
+    levf = [abs(v["lever_far"]) for v in nums.values() if "lever_far" in v]
+    net = all("tip_bump_net" in v for v in nums.values())
+    p1 = f"""<p>Across the (+⁴−)|(+⁵) wall of six-layer rhombohedral graphite the flat-band peak bends away from
+E<sub>F</sub> as it fades: up by {_mv(u['meas'])} mV in line {up}, where the band is empty, and down by
+{_mv(d['meas'])} mV in line {dn}, where it is filled, at the position of the wall spectrum (s = {u['s']:.2f} of the fitted
+profile). The measurement looks like tip gating: per volt of bias the two bends are the same, a lever arm of
+{a['alpha']:.2f} for both lines with one contact potential of {_mv(a['C'])} meV, and in {dn} an edge seen at positive bias
+on the stacking-fault side rises by 50 to 90 mV next to the same wall where the flat band, seen at negative bias,
+sinks. A capacitor estimate reproduces both bends if the density of states at E<sub>F</sub> under the tip falls to
+about 5 × 10¹² eV⁻¹ cm⁻² at the wall, the level of the (+⁴−) surface, while the (+⁵) side stays pinned.</p>""" if a else ""
+    p2 = f"""<p>The self-consistent model does not reproduce that mechanism. With the tip work function fitted to the (+⁵)
+spectra, equal to the sample's within 0.05 eV, the top layer under the tip at the wall keeps about a quarter of its
+flat-band states (4 × 10¹³ eV⁻¹ cm⁻² at E<sub>F</sub>) and screens the tip: the tip-induced bending of the top layer at
+the bias of the wall peak is {100 * min(lev):.0f} to {100 * max(lev):.0f} % of that bias, against the
+{100 * a['alpha']:.0f} %{f" the estimate needs, and no larger than on the (+⁵) side ({100 * min(levf):.0f} to {100 * max(levf):.0f} % at its bias)" if levf else " the estimate needs"}.
+Carried into the SWMcC wall model, the tip's potential shifts the peak at the wall by {_mv(u.get('tip_bump'), 1)} mV ({up}) and
+{_mv(d.get('tip_bump'), 1)} mV ({dn}), but it shifts the (+⁵) reference as well, by {_mv(u.get('dcf'), 1)} and {_mv(d.get('dcf'), 1)} mV,
+where the flat band is a pure top-layer state; its net contribution to the bend is {_mv(u.get('tip_bump_net'), 1)} and
+{_mv(d.get('tip_bump_net'), 1)} mV{f" ({_mv(u.get('tip_lateral_net'), 1)} and {_mv(d.get('tip_lateral_net'), 1)} mV with the potential of the three-dimensional solution)" if tipl and net else ""}.
+{wf_txt}</p>""" if lev and net else ""
+    p3 = f"""<p>What the model gives is a tip-free shift from the charge balance of the wall stack: with the doping carried as
+a fixed charge per layer, a top layer that has lost most of its flat-band states moves its bands to hold that charge.
+In the local approximation (uniform stacks along the fitted profile, tip included) the flat band bends by
+{_mv(u['local'])} mV ({up}) and {_mv(d['local'])} mV ({dn}). The SWMcC wall model with the self-consistent on-site
+energies of the stacks gives {_mv(u['swmcc'])} and {_mv(d['swmcc'])} mV, and {_mv(tot[up])} and {_mv(tot[dn])} mV with the
+tip's own field: {100 * tot[up] / u['meas']:.0f} % and {100 * tot[dn] / d['meas']:.0f} % of the measured bends, with
+the right signs and the fringes of the (+⁴−) side{", but the larger bend in the wrong line" if abs(tot[up]) > abs(tot[dn]) else ""}. The shift depends on the
+doping model: with the doping compensated by charge in the SiO₂, the polarized stack that fits the (+⁵) spectrum of
+{dn} best at the interlayer permittivity of graphite (ε = 2.6), the wall's charge rearrangement becomes a dipole inside
+the stack and the bend falls to {_mv(pol.get('_eps26_fb'), 1)} mV. No model run produces the rising edge on the (+⁴−)
+side.</p>""" if all(k in u and k in d for k in ("local", "swmcc")) and len(tot) == 2 else ""
+    p4 = """<p>The status is therefore a measurement that looks like tip gating and a model that screens the tip too well
+to produce it. The model's largest known deficit points that way: its flat band is 6 meV wide in the γ0/γ1 bands
+(10 meV with the broadening used) against 26 mV measured, so it overstates the density of states at E<sub>F</sub> and
+with it the screening of the tip. The next model step is the band width (γ3, γ4 and Δ′ in the self-consistent stacks);
+the measurement that separates the two mechanisms is the bend against the tip height and the tip work function at
+the same wall, which change a tip-gating bend and leave a charge-balance bend alone.</p>"""
+    return p1 + p2 + p3 + p4
+
+
+def status_table(states):
+    nums, pol = status_numbers(states)
+    if len(nums) < 2:
+        return ""
+    t1, t2 = list(nums)[:2]
+    a, b = nums[t1], nums[t2]
+    al = bend_asymmetry(states)
+
+    def row(label, f, note=""):
+        return f"<tr><td>{label}</td><td>{f(a)}</td><td>{f(b)}</td><td>{note}</td></tr>"
+
+    pct = lambda v, k: f"{_mv(v.get(k))} mV ({100 * v[k] / v['meas']:.0f} %)" if v.get(k) is not None else "–"   # noqa: E731
+    tot = lambda v: (v["swmcc"] + v["tip_bump_net"]) if ("swmcc" in v and "tip_bump_net" in v) else None   # noqa: E731
+    rows = [
+        row("flat-band peak (+⁵) / at the wall spectrum, measured", lambda v: f"{_mv(v['E_fb'])} / {_mv(v['V_wall'])} mV"),
+        row("<b>measured bend</b>", lambda v: f"<b>{_mv(v['meas'])} mV</b>", f"at s = {a['s']:.2f} of the fitted profile"),
+        row("lever arm of the tip on the top layer: needed / model", lambda v: f"{al['alpha']:.2f} / {abs(v.get('lever', float('nan'))):.2f}"
+            if al else "–", "needed: one lever arm and one contact potential for both lines; model: top-layer bump at the wall-peak bias over that bias"),
+        row("local approximation (uniform stacks, tip included)", lambda v: pct(v, "local"), "bend against its own (+⁵) peak"),
+        row("SWMcC wall + self-consistent on-site energies (no tip)", lambda v: pct(v, "swmcc"), "far-field charge balance"),
+        row("lever arm of the tip on the top layer far on the (+⁵) side, at its bias", lambda v: f"{abs(v.get('lever_far', float('nan'))):.2f}"),
+        row("tip-induced shift of the peak at the wall / of the (+⁵) peak", lambda v: f"{_mv(v.get('tip_bump'), 1)} / {_mv(v.get('dcf'), 1)} mV",
+            "SWMcC with the Gaussian bump, contact potential 0, each at its measured bias"),
+        row("tip-induced part of the bend: Gaussian bump / three-dimensional solve", lambda v: f"{_mv(v.get('tip_bump_net'), 1)} / {_mv(v.get('tip_lateral_net'), 1)} mV",
+            "shift at the wall minus shift of the (+⁵) reference"),
+        row("SWMcC + on-site energies + tip", lambda v: (f"{_mv(tot(v))} mV ({100 * tot(v) / v['meas']:.0f} %)" if tot(v) is not None else "–")),
+        row("tip work function − sample's for the measured bend", lambda v: (f"{_mv(v['need'])} meV" if v.get("need") is not None else
+            (f"not reached; largest {_mv(v['wf_best'])} mV at {_mv(v['wf_best_delta'])} meV" if v.get("wf_best") is not None else "–")),
+            "offsets −350 to +200 meV computed; the (+⁵) fits allow 0 ± 50 meV"),
+    ]
+    if pol:
+        lab = {"": "polarized stack, ε = 15 (unphysical permittivity)", "_eps26_fb": "polarized stack, ε = 2.6, flat-band fit",
+               "_eps26_peaks": "polarized stack, ε = 2.6, best peak fit"}
+        for suf, v in pol.items():
+            rows.append(f"<tr><td>{lab[suf]}</td><td>–</td><td>{_mv(v, 1)} mV</td><td>local approximation, largest bend along the line</td></tr>")
+    return f"""<div class="tablewrap"><table>
+<tr><th>flat-band bend at the wall</th><th>{t1}</th><th>{t2}</th><th>note</th></tr>
+{''.join(rows)}
+</table></div>"""
+
+
+def doping_extra_text(img_prefix=""):
+    """The work-function fit at eps = 2.6 and the hole-side van Hove observation."""
+    p = os.path.join(EXAMPLES, "stacking_wall_eps26_cpot_940.json")
+    if not os.path.exists(p):
+        return ""
+    with open(p) as fh:
+        c = json.load(fh)
+    st, be = c["start"], c["best"]
+    return f"""<h3>Tip work function as a third fit parameter (ε = 2.6)</h3>
+<p>With the offset δ of the tip work function from the sample's free next to ΔE<sub>F</sub> and the hole density
+(<code>stacking_wall_epsfit/fit_cpot.py</code>, compass search from the flat-band fit) the five peak positions of the
+(+⁵) spectrum of 940 improve from {1e3 * st['rms']:.1f} to {1e3 * be['rms']:.1f} mV rms at ΔE<sub>F</sub> =
+{1e3 * be['dEF']:.1f} meV, {be['holes'] / 1e10:.0f}×10¹⁰ holes and δ = {_mv(be['delta'])} meV: the tip work function
+stays at the sample's.</p>
+<figure><img src="{img_prefix}stacking_wall_eps26_cpot_940.png" alt="eps 2.6 fit with the tip work function free">
+<figcaption>Line 940, (+⁵) side, ε = 2.6: measured dI/dV against the start and the best point of the three-parameter
+search, and the search path.</figcaption></figure>
+<p><b>Observation (2026-11-09).</b> In the ε = 2.6 best-peak fit (ΔE<sub>F</sub> = 40 meV, about 1.5 × 10¹² holes) the
+spectrum computed without the tip has a weak hole-side van Hove maximum near −330 mV that disappears once the tip is
+in the solve, while the structure near −215 mV survives (at −222 mV). The measured spectra lack the −330 mV
+maximum as well: the negative-bias spectrum is shaped by the tip's field.</p>"""
+
+
+def open_issues_text(states):
+    return """<ul>
+<li><b>Width of the flat band.</b> 6 meV in the γ0/γ1 stacks of the Poisson solver (10 meV with the broadening used)
+against 26 mV measured. A too narrow band overstates D(E<sub>F</sub>) and the screening of the tip, and it is the one
+model error that would suppress tip gating. The bandbending plan's next phase (P5: γ3, γ4, Δ′ in the self-consistent
+stacks) addresses it.</li>
+<li><b>Doping model.</b> The charge-balance shift exists with a fixed charge per layer (uniform doping) and nearly
+vanishes with the doping compensated in the SiO₂ (polarized stack), which fits the (+⁵) spectrum of 940 better at
+ε = 2.6. The per-layer charge also puts the (+⁴−) Fermi level 30 to 40 meV from its neutrality point, where the
+measurement has it near neutrality; the charge-balance shift it produces is an upper estimate.</li>
+<li><b>The (+⁴−)-side edge.</b> In 940 the lowest edge above E<sub>F</sub> on the stacking-fault side rises from +66 to
++143 mV within 5 nm of the wall centre, over a stretch where s(x) only falls from 1.00 to 0.86. No model run follows
+it; it rises at positive bias next to the wall where the flat band sinks at negative bias, which a rigid potential
+shift cannot do and tip gating does.</li>
+<li><b>Tests on the instrument.</b> A tip-gating bend scales with the gap capacitance and with the tip work function;
+a charge-balance bend does not. The bend against the setpoint (tip height) at one wall, and at the same wall with a
+tip of different work function, separates them.</li>
+<li><b>Different tips.</b> 514 and 940 were recorded on different days. One contact potential for both lines is an
+assumption of the asymmetry fit; each line's own (+⁵) fit gives 0 ± 0.05 eV on its own.</li>
+</ul>"""
+
+
+def tip_gating_text():
+    return """<p>Close to the wall the flat-band peak does not only fade, it moves: in spectrum 514, where the band is
+mostly empty and seen at positive bias, it climbs from +22 mV to about +55 mV; in spectrum 940, where it is mostly
+filled and seen at negative bias, it sinks from −32 mV to about −88 mV. The SWMcC model without electrostatics shifts
+it by only +5 meV in both cases, so the bend is not in the band structure of the wall.</p>
+<p>The first explanation considered was tip gating. The tunnel junction is a capacitor with the sample as one plate;
+how much of the bias drops inside the sample depends on how easily the surface under the tip piles up or sheds
+charge. Far from the wall the flat band, about 10¹³ states per cm² within some 10 meV, makes the top layer a metal
+plate: the whole bias falls across the vacuum gap and the peak sits at its true energy. At the wall the flat-band
+states leave the top layer (on the stacking-fault side they sit in layer 2). If what is left under the tip were the
+Dirac cone of the (+⁴−) surface near its node, a fraction f of the bias would drop inside the sample and shift the
+local bands by f·eV: up at positive bias, down at negative bias, so that an empty band (seen at positive bias) bends
+up and a filled one bends down, with V<sub>app</sub> = E<sub>FB</sub> / [e(1 − f)].</p>
+<div class="tablewrap"><table>
+<tr><th>line spectrum</th><th>flat band far from the wall</th><th>at one third peak height</th><th>shift</th><th>f = 1 − V<sub>far</sub>/V<sub>app</sub></th></tr>
+<tr><td>514 (band mostly empty)</td><td>+22 mV</td><td>+49 to +60 mV</td><td>+27 to +38 mV</td><td>0.54 to 0.62</td></tr>
+<tr><td>940 (band mostly filled)</td><td>−32 mV</td><td>−88 mV</td><td>−56 mV</td><td>0.63</td></tr>
+</table></div>
+<p>Scale: a 0.7 nm gap gives C<sub>gap</sub> = ε₀/d ≈ 13 mF m⁻². The intact flat band has C<sub>q</sub> = e²D ≈ 1.6 F m⁻²,
+so f ≈ 0.01: the band is pinned. f ≈ 0.6 needs C<sub>q</sub> ≈ 9 mF m⁻², D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻², the value
+of the (+⁴−) surface cone 10 to 20 meV from its Dirac point. Both lines give the same f with opposite bias, and in 940
+an edge on the stacking-fault side at positive bias rises by 50 to 90 mV next to the same wall where the flat band at
+negative bias sinks; a rigid offset of the bands, such as a polarization of the (+⁴−) stack, would move both the same
+way. The estimate leaves open whether the density of states under the tip really falls that far while the flat-band
+peak is still visible. The self-consistent calculation below tests it, and at the fitted work function it does not
+find it: the top layer keeps about a quarter of its flat-band states at s = 0.75 and the tip moves the peak by a few
+millivolts.</p>"""
 
 
 def page(tags, img_prefix=""):
     infos = [load(t) for t in tags]
+    states = load_states(tags)
     rows = []
     for d in infos:
         f = d["fit"]
@@ -1268,19 +1501,62 @@ def page(tags, img_prefix=""):
             f'<figure><img src="{img_prefix}stacking_wall_{t}.png" alt="dI/dV and model LDOS, line spectrum {t}">'
             f"<figcaption>Line spectrum {t}, l = {d['fit']['ell']:.1f} nm. Top: measured dI/dV(V, x) and top-layer "
             f"LDOS(E, x). Middle: bias derivatives. Bottom: fitted profile and spectra at three positions.</figcaption></figure>")
+    summary_figs = []
+    for t in tags:
+        if os.path.exists(os.path.join(EXAMPLES, f"stacking_wall_summary_{t}.png")):
+            summary_figs.append(
+                f'<figure><img src="{img_prefix}stacking_wall_summary_{t}.png" alt="flat-band bend at the wall, line {t}">'
+                f"<figcaption>Line spectrum {t}. Top, zoomed on the flat band: measured dI/dV, the local approximation "
+                f"(Poisson solver, uniform stacks along the fitted profile, tip included) and the SWMcC wall model with the "
+                f"self-consistent on-site energies (no tip); arrows mark the measured wall spectrum. Bottom left: the "
+                f"flat-band peak along the line, with the SWMcC model plus the tip-induced bump at the tip positions solved "
+                f"(diamonds). Bottom right: the bend at the wall spectrum, each model against its own (+⁵) peak "
+                f"(<code>stacking_wall_summary_figure.py</code>).</figcaption></figure>")
+    has_tibb = bool(states)
+    tibb_parts = ""
+    if has_tibb:
+        tibb_parts = f"""
+<h2>3. Self-consistent electrostatics: the model, the (+⁵) fit and the tip work function</h2>
+{tibb_setup_text(states, img_prefix)}
+{workfunction_text(states)}
+<h2>4. Across the wall in the local approximation</h2>
+{tibb_text(states, img_prefix)}
+<h2>5. The SWMcC wall model with the self-consistent on-site energies</h2>
+{hybrid_text(states, img_prefix)}
+<h2>6. The tip's own field</h2>
+{bump_text(states, img_prefix)}
+{cpot_sensitivity_text(states, img_prefix)}
+{lateral_text(states, img_prefix)}
+<h2>7. The doping model of 940</h2>
+{epsfit_text(img_prefix)}
+{polar_series_text(img_prefix)}
+{eps26_fit_text(img_prefix)}
+{eps26_series_text(img_prefix)}
+{eps26_peaks_series_text(img_prefix)}
+{doping_extra_text(img_prefix)}
+<h2>8. Open issues</h2>
+{open_issues_text(states)}"""
 
     return f"""<title>Stacking Wall LDOS</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 {FONTS}
 {STYLE}
 <main>
-<div class="eyebrow">Six-layer graphite · (+⁴−) | (+⁵) domain wall · SWMcC model against STM</div>
-<h1>Top-surface LDOS across a single-layer stacking shift</h1>
-<p class="lede">The Hamiltonian of hexalayer rhombohedral graphite is interpolated into that of the
-stacking fault across one wall, with the wall length taken from the measured dI/dV line spectra
-(flake MK_ABC_FLG_25, 9 K). Code: <code>stacking_wall.py</code>, <code>stacking_wall_figure.py</code>.</p>
+<div class="eyebrow">Six-layer graphite · (+⁴−) | (+⁵) domain wall · STM line spectra 514 and 940</div>
+<h1>Flat-band bending at a stacking domain wall: what the models reproduce</h1>
+<p class="lede">Status report on the bend of the flat-band peak at the (+⁴−)|(+⁵) wall (flake MK_ABC_FLG_25, 9 K):
+the SWMcC wall model, the self-consistent Poisson solver of the bandbending engine, and their combination.</p>
 
-<h2>Model</h2>
+<h2>Abstract</h2>
+{abstract_text(states) if has_tibb else ""}
+
+<h2>Status in numbers</h2>
+{status_table(states) if has_tibb else ""}
+<div class="figs">
+{''.join(summary_figs)}
+</div>
+
+<h2>1. The measurement and the SWMcC wall model</h2>
 <p>The k·p Slonczewski–Weiss–McClure Hamiltonian is linear in the momentum from the valley centre,
 <i>H</i><sub>S</sub>(<b>p</b>) = <i>C</i><sub>S</sub> + <i>p<sub>x</sub></i><i>X</i><sub>S</sub> + <i>p<sub>y</sub></i><i>Y</i><sub>S</sub>,
 for both stackings S = (+⁵) ABCABC and (+⁴−) ABCABA. Across the wall every matrix element that differs
@@ -1294,73 +1570,35 @@ periodicity needs is {m['length'] / 20:.0f} nm away). The layer-resolved LDOS(E,
 σ = {1e3 * m['sigma']:.0f} meV. Parameters of McEllistrim et al.: γ0 = {p['gamma0']:.3f}, γ1 = {p['gamma1']:.3f},
 γ2 = {p['gamma2']:.3f}, γ3 = {p['gamma3']:.3f}, γ4 = {p['gamma4']:.3f}, γ5 = {p['gamma5']:.3f},
 Δ′ = {p['Delta_prime']:.3f} eV. Without a wall the layer-summed LDOS equals the k·p DOS of the repository to 1 %,
-and a monolayer gives 2|E| / (πħ²v²) to 10⁻⁴.</p>
-
-<h2>Wall length from the measurements</h2>
-<p>Every spectrum of a line is written as (1 − s) S<sub>(+⁴−)</sub>(V) + s S<sub>(+⁵)</sub>(V) with the end-member
-spectra averaged far from the wall (least squares over −0.3 … 0.3 V), and s(x) is fitted with the same tanh step.
-The flat-band weight within ±25 meV gives the same lengths within 0.5 nm. The model energy axis is shifted
+and a monolayer gives 2|E| / (πħ²v²) to 10⁻⁴. The k·p arrays are numbered from the bottom layer (the top-layer LDOS
+is the last), the engine's from the top; potentials passed from one to the other are reversed.</p>
+<p>Wall length: every spectrum of a line is written as (1 − s) S<sub>(+⁴−)</sub>(V) + s S<sub>(+⁵)</sub>(V) with the
+end-member spectra averaged far from the wall (least squares over −0.3 … 0.3 V), and s(x) is fitted with the same
+tanh step. The flat-band weight within ±25 meV gives the same lengths within 0.5 nm. The model energy axis is shifted
 rigidly so that its (+⁵) flat band sits on the measured one.</p>
 <div class="tablewrap"><table>
 <tr><th>line spectrum</th><th>wall centre x0</th><th>l (tanh)</th><th>10–90 % width</th><th>flat band (+⁵)</th><th>model shift</th></tr>
 {''.join(rows)}
 </table></div>
-
-<h2>Figures</h2>
 <div class="figs">
 {''.join(figs)}
 </div>
-
-<h2>What the model reproduces, and its limits</h2>
 <ul>
-<li>Flat-band peak on the (+⁵) surface; on the (+⁴−) surface it is absent and sits in layer 2 (layer-resolved
-maps in <code>examples/stacking_wall_layers_*.png</code>). The (+⁵) gap faces the V-shaped surface band of (+⁴−).</li>
-<li>Quasiparticle-interference fringes fan out from the wall on the (+⁴−) top layer only, as in Fig. 2 and 3
-of the paper; none inside the (+⁵) gap.</li>
+<li>The model has the flat-band peak on the (+⁵) surface; on the (+⁴−) surface it is absent and sits in layer 2
+(layer-resolved maps in <code>examples/stacking_wall_layers_*.png</code>). The (+⁵) gap faces the V-shaped surface
+band of (+⁴−).</li>
+<li>Quasiparticle-interference fringes fan out from the wall on the (+⁴−) top layer only, as in Fig. 2 and 3 of the
+paper; none inside the (+⁵) gap.</li>
 <li>The fitted l is an apparent LDOS width that includes the lateral extent of the surface states, not the
 structural soliton width.</li>
-<li>Linear interpolation passes through a midpoint with both dimer couplings at γ1/2 rather than the
-saddle-point stacking of the real shift path; no layer-dependent doping is included.</li>
+<li>Linear interpolation passes through a midpoint with both dimer couplings at γ1/2 rather than the saddle-point
+stacking of the real shift path.</li>
 <li>The k·p trigonal-warping legs extend to large momentum, so the LDOS is reliable within about ±0.4 eV.</li>
 </ul>
-<h2>Why the flat band bends at the wall</h2>
-<p>Close to the wall the flat-band peak does not only fade, it moves: in spectrum 514, where the band is
-mostly empty and seen at positive bias, it climbs from +22 mV to about +55 mV; in spectrum 940, where it is
-mostly filled and seen at negative bias, it sinks from −32 mV to about −88 mV. The electrostatics-free model
-shifts it by only +5 meV in both cases, so the bend is not in the band structure. It is the tip gating the
-sample.</p>
-<p>The tunnel junction is a capacitor with the sample as one plate. How much of the bias drops across the
-vacuum gap and how much inside the sample depends on how easily the surface under the tip can pile up or
-shed charge. A large density of states at the Fermi level means a tiny change of potential moves a lot of
-charge, so the surface screens the tip almost perfectly and the whole bias falls across the gap. The flat
-band is exactly such a reservoir, about 10¹³ states per cm² within some 10 meV: far from the wall the
-top layer behaves like a metal plate, the bands inside do not move, and the peak sits at its true energy.
-At the wall the flat-band states leave the top layer (they sit in layer 2 on the stacking-fault side).
-What is left under the tip is the Dirac cone of the (+⁴−) surface near its node, a hundred times fewer
-states. The surface turns from a metal plate into a thin semiconductor, the field of the tip now reaches
-into it, and a fraction f of the bias drops inside the sample: the local bands shift rigidly by f·eV.</p>
-<p>The direction follows the sign of the bias, not the filling of the band. At positive sample bias the tip
-is negative with respect to the sample; it pushes electrons away and lifts the local bands, so a state that
-is truly at E<sub>FB</sub> is only reached at a larger bias and the peak appears higher. At negative bias
-the tip pulls electrons in, the bands bend down and the peak appears lower. The filling of the flat band
-only decides which sign of bias is needed to see it: an empty band is seen at positive bias and bends up,
-a filled one at negative bias and bends down. The effect feeds back on itself, because the bending moves
-the peak further from zero bias, where it is measured, so V<sub>app</sub> = E<sub>FB</sub> / [e(1 − f)].
-Both spectra give the same f ≈ 0.6 where the peak has lost two thirds of its height, with opposite bias;
-in 940 a feature at +69 mV on the stacking-fault side bends up by 50 to 90 mV next to the same wall where
-the flat band bends down, which rules out a fixed offset such as the polarization of the (+⁴−) stack.</p>
-<div class="tablewrap"><table>
-<tr><th>line spectrum</th><th>flat band far from the wall</th><th>at one third peak height</th><th>shift</th><th>f = 1 − V<sub>far</sub>/V<sub>app</sub></th></tr>
-<tr><td>514 (band mostly empty)</td><td>+22 mV</td><td>+49 to +60 mV</td><td>+27 to +38 mV</td><td>0.54 to 0.62</td></tr>
-<tr><td>940 (band mostly filled)</td><td>−32 mV</td><td>−88 mV</td><td>−56 mV</td><td>0.63</td></tr>
-</table></div>
-<p>Scale: a 0.7 nm gap gives C<sub>gap</sub> = ε₀/d ≈ 13 mF m⁻². The intact flat band has
-C<sub>q</sub> = e²D ≈ 1.6 F m⁻², so f ≈ 0.01 and the bending stays below 1 mV: the band is pinned. f ≈ 0.6 needs
-C<sub>q</sub> ≈ 9 mF m⁻², i.e. D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻², the value of the (+⁴−) surface cone
-10 to 20 meV from its Dirac point. The sign reversal between −30 and +70 mV in spectrum 940 also puts the
-flat-band voltage of the junction, set by the work-function difference of tip and sample, within a few tens
-of mV of zero.</p>
-{tibb_section(tags, img_prefix)}
+
+<h2>2. The tip-gating estimate</h2>
+{tip_gating_text()}
+{tibb_parts}
 <footer>Kandrai et al., arXiv:2610.20905 (2026) · few-layer-graphite, branch claude/eloquent-franklin-q9q4cb ·
 line spectra 514 and 940 are not part of the repository.</footer>
 </main>

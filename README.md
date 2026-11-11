@@ -330,6 +330,30 @@ python stacking_wall_polar_series.py run 0  # one of 4 workers
 python stacking_wall_polar_series.py collect --sm4 ..._940.sm4
 ```
 
+`stacking_wall_cpot_sensitivity.py` solves the k·p wall model with the
+tip-induced bump at the wall spectrum and far on the (+⁵) side for tip
+work-function offsets of −0.35 to +0.2 eV (the bump of the fitted sweeps at
+V + δ), and `stacking_wall_summary_figure.py` draws the figure set of a line
+(measured, local approximation and SWMcC + on-site maps, the flat-band peak
+along the line, the bend at the wall) for the report.
+
+```
+python stacking_wall_cpot_sensitivity.py --tag 940
+python stacking_wall_cpot_sensitivity.py --plot
+python stacking_wall_summary_figure.py --tag 940 --sm4 ..._940.sm4
+```
+
+Layer order: the bandbending engine numbers the layers from the top (index 0
+faces the tip), `stacking_wall.ldos_wall` from the bottom (the top-layer LDOS
+is `ldos[-1]`); engine potentials are reversed before they go into the k·p
+model.
+
+`examples/` holds the outputs of these scripts: figures, result files, the
+hybrid notebook and the report `examples/stacking_wall_report.html`. They are
+results of the wall study, not tests of the Poisson solver; the solver's
+validations (against SEMITIP and published STM measurements) are in the
+`examples/` folder of the bandbending repository.
+
 ## Tests
 
 ```

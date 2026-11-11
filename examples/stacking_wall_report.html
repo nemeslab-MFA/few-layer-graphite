@@ -49,13 +49,54 @@ footer { margin-top: 2.5rem; font-family: var(--sans); font-size: 0.8rem; color:
 </head>
 <body>
 <main>
-<div class="eyebrow">Six-layer graphite · (+⁴−) | (+⁵) domain wall · SWMcC model against STM</div>
-<h1>Top-surface LDOS across a single-layer stacking shift</h1>
-<p class="lede">The Hamiltonian of hexalayer rhombohedral graphite is interpolated into that of the
-stacking fault across one wall, with the wall length taken from the measured dI/dV line spectra
-(flake MK_ABC_FLG_25, 9 K). Code: <code>stacking_wall.py</code>, <code>stacking_wall_figure.py</code>.</p>
+<div class="eyebrow">Six-layer graphite · (+⁴−) | (+⁵) domain wall · STM line spectra 514 and 940</div>
+<h1>Flat-band bending at a stacking domain wall: what the models reproduce</h1>
+<p class="lede">Status report on the bend of the flat-band peak at the (+⁴−)|(+⁵) wall (flake MK_ABC_FLG_25, 9 K):
+the SWMcC wall model, the self-consistent Poisson solver of the bandbending engine, and their combination.</p>
 
-<h2>Model</h2>
+<h2>Abstract</h2>
+<p>Across the (+⁴−)|(+⁵) wall of six-layer rhombohedral graphite the flat-band peak bends away from
+E<sub>F</sub> as it fades: up by +34 mV in line 514, where the band is empty, and down by
+−53 mV in line 940, where it is filled, at the position of the wall spectrum (s = 0.75 of the fitted
+profile). The measurement looks like tip gating: per volt of bias the two bends are the same (a lever arm of
+0.61 for both lines with one contact potential of −1 meV), and in 940 an edge seen at positive bias
+on the stacking-fault side rises by 50 to 90 mV next to the same wall where the flat band, seen at negative bias,
+sinks. A capacitor estimate gives both bends if the density of states at E<sub>F</sub> under the tip falls to about
+5 × 10¹² eV⁻¹ cm⁻² at the wall while the (+⁵) side stays pinned.</p><p>The self-consistent model (Poisson equation with γ0/γ1 tight-binding stacks, tip work function fitted to the
+(+⁵) spectra, equal to the sample's within 0.05 eV) bends the flat band the measured way, but not by tip gating.
+Computed from the same self-consistent stacks with and without the tip, the bend at the wall spectrum is
++18 and −22 mV with the tip and +19 and
+−24 mV without it: it is charge redistribution in the wall stack, which has lost most of its
+top-layer flat-band states and must move its bands to hold the same charge. The tip shifts the peaks
+(+3.6 and −6.9 mV on the (+⁵) stack), but by about as much at the wall as on the
+(+⁵) side, since its lever arm on the top layer is 0.11 to 0.16 on both; the bend keeps
+−0.9 and +2.3 mV of it. The SWMcC wall
+model with the self-consistent on-site energies gives the same picture (+22 and −15 mV, the
+tip adding +1.1 and −1.7 mV), with the fringes of the (+⁴−) side.
+In the SWMcC model with the tip-induced potential no tip work function within −350 to +200 meV of the sample's reaches the measured bend (the largest bends are +24 and −17 mV).</p><p>A bend from charge redistribution belongs to the sample: its sign follows the filling of the flat band, so it
+appears in both directions whatever the tip, which answers why the tip and sample work functions would otherwise have
+to agree within about 25 meV. In size it reaches 54 % (514) and
+42 % (940) of the measured bend, and it depends on the doping model: with the doping
+compensated by charge in the SiO₂ (the polarized stack that fits the (+⁵) spectrum of 940 best at ε = 2.6) the
+wall's charge rearrangement becomes a dipole inside the stack and the bend falls to −2.5 mV.
+No model run produces the rising edge on the (+⁴−) side. Widening the Gaussian of the occupation and the LDOS from 10 meV to 13.7 and 12.5 meV, which gives the measured flat-band width (42 to 45 mV against 34 to 35 mV), leaves the lever arm at the wall at 0.12 and 0.14 and gives bends of +16 and −22 mV with the tip, +16 and −24 mV without it.</p><p>The status: charge redistribution gives the sign and about half the size of the bend; the rest, and the
+rising (+⁴−) edge, need a tip lever arm of about 0.6 at the wall. The model cannot get there by thinning the top layer:
+as long as the layer below has states at E<sub>F</sub>, it holds the top layer through the interlayer capacitance and caps
+the lever arm near 0.16, where the model sits, with or without a flat band widened to the measured width. A lever arm of
+0.6 needs the tip's field to reach through the whole stack, with no layer under the apex holding states at E<sub>F</sub>
+(section 9). The measurement that separates the two mechanisms is the bend against the tip height at one wall: a
+tip-gating bend scales with the gap capacitance, a charge-redistribution bend does not.</p>
+
+<h2>Status in numbers</h2>
+<div class="tablewrap"><table>
+<tr><th>flat-band bend at the wall</th><th>514</th><th>940</th><th>note</th></tr>
+<tr><td>flat-band peak (+⁵) / at the wall spectrum, measured</td><td>+23 / +56 mV</td><td>−32 / −85 mV</td><td></td></tr><tr><td><b>measured bend</b></td><td><b>+34 mV</b></td><td><b>−53 mV</b></td><td>at s = 0.75 of the fitted profile</td></tr><tr><td>lever arm of the tip on the top layer at the wall: needed / model</td><td>0.61 / 0.11</td><td>0.61 / 0.14</td><td>needed: one lever arm and one contact potential for both lines; model: top-layer bending at the wall-peak bias over that bias</td></tr><tr><td>local approximation with the tip / without the tip</td><td>+18.2 / +19.1 mV (54 / 56 %)</td><td>−22.1 / −24.4 mV (42 / 46 %)</td><td>same self-consistent stacks; centroids against the own (+⁵) peak</td></tr><tr><td>local approximation, flat band as wide as measured: with / without the tip</td><td>+15.9 / +16.1 mV (σ = 13.7 meV)</td><td>−21.6 / −23.7 mV (σ = 12.5 meV)</td><td>σ = 10 meV above</td></tr><tr><td>SWMcC wall + self-consistent on-site energies (no tip)</td><td>+22 mV (67 %)</td><td>−15 mV (29 %)</td><td>far-field charge balance</td></tr><tr><td>lever arm of the tip on the top layer far on the (+⁵) side, at its bias</td><td>0.12</td><td>0.16</td><td></td></tr><tr><td>tip-induced shift of the peak at the wall / of the (+⁵) peak</td><td>+3.6 / +2.5 mV</td><td>−6.2 / −4.5 mV</td><td>SWMcC with the Gaussian bump, contact potential 0, each at its measured bias</td></tr><tr><td>tip-induced part of the bend: Gaussian bump / three-dimensional solve</td><td>+1.1 / +1.1 mV</td><td>−1.7 / +0.2 mV</td><td>shift at the wall minus shift of the (+⁵) reference</td></tr><tr><td>SWMcC + on-site energies + tip</td><td>+24 mV (70 %)</td><td>−17 mV (32 %)</td><td></td></tr><tr><td>tip work function − sample's for the measured bend</td><td>not reached; largest +24 mV at +0 meV</td><td>not reached; largest −17 mV at +100 meV</td><td>offsets −350 to +200 meV computed; the (+⁵) fits allow 0 ± 50 meV</td></tr><tr><td>polarized stack, ε = 15 (unphysical permittivity)</td><td>–</td><td>−17.5 mV</td><td>local approximation, largest bend along the line</td></tr><tr><td>polarized stack, ε = 2.6, flat-band fit</td><td>–</td><td>−2.5 mV</td><td>local approximation, largest bend along the line</td></tr><tr><td>polarized stack, ε = 2.6, best peak fit</td><td>–</td><td>−2.5 mV</td><td>local approximation, largest bend along the line</td></tr>
+</table></div>
+<div class="figs">
+<figure><img src="stacking_wall_summary_514.png" alt="flat-band bend at the wall, line 514"><figcaption>Line spectrum 514. Top, zoomed on the flat band: measured dI/dV, the local approximation (Poisson solver, uniform stacks along the fitted profile, tip included) and the SWMcC wall model with the self-consistent on-site energies (no tip); arrows mark the measured wall spectrum. Bottom left: the flat-band peak along the line, with the SWMcC model plus the tip-induced bump at the tip positions solved (diamonds). Bottom right: the bend at the wall spectrum, each model against its own (+⁵) peak (<code>stacking_wall_summary_figure.py</code>).</figcaption></figure><figure><img src="stacking_wall_summary_940.png" alt="flat-band bend at the wall, line 940"><figcaption>Line spectrum 940. Top, zoomed on the flat band: measured dI/dV, the local approximation (Poisson solver, uniform stacks along the fitted profile, tip included) and the SWMcC wall model with the self-consistent on-site energies (no tip); arrows mark the measured wall spectrum. Bottom left: the flat-band peak along the line, with the SWMcC model plus the tip-induced bump at the tip positions solved (diamonds). Bottom right: the bend at the wall spectrum, each model against its own (+⁵) peak (<code>stacking_wall_summary_figure.py</code>).</figcaption></figure>
+</div>
+
+<h2>1. The measurement and the SWMcC wall model</h2>
 <p>The k·p Slonczewski–Weiss–McClure Hamiltonian is linear in the momentum from the valley centre,
 <i>H</i><sub>S</sub>(<b>p</b>) = <i>C</i><sub>S</sub> + <i>p<sub>x</sub></i><i>X</i><sub>S</sub> + <i>p<sub>y</sub></i><i>Y</i><sub>S</sub>,
 for both stackings S = (+⁵) ABCABC and (+⁴−) ABCABA. Across the wall every matrix element that differs
@@ -69,98 +110,86 @@ periodicity needs is 240 nm away). The layer-resolved LDOS(E, x) sums the
 σ = 5 meV. Parameters of McEllistrim et al.: γ0 = 3.090, γ1 = 0.390,
 γ2 = -0.017, γ3 = 0.309, γ4 = 0.068, γ5 = 0.038,
 Δ′ = 0.025 eV. Without a wall the layer-summed LDOS equals the k·p DOS of the repository to 1 %,
-and a monolayer gives 2|E| / (πħ²v²) to 10⁻⁴.</p>
-
-<h2>Wall length from the measurements</h2>
-<p>Every spectrum of a line is written as (1 − s) S<sub>(+⁴−)</sub>(V) + s S<sub>(+⁵)</sub>(V) with the end-member
-spectra averaged far from the wall (least squares over −0.3 … 0.3 V), and s(x) is fitted with the same tanh step.
-The flat-band weight within ±25 meV gives the same lengths within 0.5 nm. The model energy axis is shifted
+and a monolayer gives 2|E| / (πħ²v²) to 10⁻⁴. The k·p arrays are numbered from the bottom layer (the top-layer LDOS
+is the last), the engine's from the top; potentials passed from one to the other are reversed.</p>
+<p>Wall length: every spectrum of a line is written as (1 − s) S<sub>(+⁴−)</sub>(V) + s S<sub>(+⁵)</sub>(V) with the
+end-member spectra averaged far from the wall (least squares over −0.3 … 0.3 V), and s(x) is fitted with the same
+tanh step. The flat-band weight within ±25 meV gives the same lengths within 0.5 nm. The model energy axis is shifted
 rigidly so that its (+⁵) flat band sits on the measured one.</p>
 <div class="tablewrap"><table>
 <tr><th>line spectrum</th><th>wall centre x0</th><th>l (tanh)</th><th>10–90 % width</th><th>flat band (+⁵)</th><th>model shift</th></tr>
 <tr><td>MK_ABC_FLG_25_9K_2023_08_03_16_33_49_514.sm4</td><td>37.6 ± 0.2 nm</td><td>8.8 ± 0.3 nm</td><td>19.4 nm</td><td>+23 mV</td><td>+17.5 meV</td></tr><tr><td>MK_ABC_FLG_25_9K_2023_10_25_17_00_17_940.sm4</td><td>39.2 ± 0.0 nm</td><td>5.6 ± 0.1 nm</td><td>12.2 nm</td><td>-32 mV</td><td>-37.5 meV</td></tr>
 </table></div>
-
-<h2>Figures</h2>
 <div class="figs">
 <figure><img src="stacking_wall_514.png" alt="dI/dV and model LDOS, line spectrum 514"><figcaption>Line spectrum 514, l = 8.8 nm. Top: measured dI/dV(V, x) and top-layer LDOS(E, x). Middle: bias derivatives. Bottom: fitted profile and spectra at three positions.</figcaption></figure><figure><img src="stacking_wall_940.png" alt="dI/dV and model LDOS, line spectrum 940"><figcaption>Line spectrum 940, l = 5.6 nm. Top: measured dI/dV(V, x) and top-layer LDOS(E, x). Middle: bias derivatives. Bottom: fitted profile and spectra at three positions.</figcaption></figure>
 </div>
-
-<h2>What the model reproduces, and its limits</h2>
 <ul>
-<li>Flat-band peak on the (+⁵) surface; on the (+⁴−) surface it is absent and sits in layer 2 (layer-resolved
-maps in <code>examples/stacking_wall_layers_*.png</code>). The (+⁵) gap faces the V-shaped surface band of (+⁴−).</li>
-<li>Quasiparticle-interference fringes fan out from the wall on the (+⁴−) top layer only, as in Fig. 2 and 3
-of the paper; none inside the (+⁵) gap.</li>
+<li>The model has the flat-band peak on the (+⁵) surface; on the (+⁴−) surface it is absent and sits in layer 2
+(layer-resolved maps in <code>examples/stacking_wall_layers_*.png</code>). The (+⁵) gap faces the V-shaped surface
+band of (+⁴−).</li>
+<li>Quasiparticle-interference fringes fan out from the wall on the (+⁴−) top layer only, as in Fig. 2 and 3 of the
+paper; none inside the (+⁵) gap.</li>
 <li>The fitted l is an apparent LDOS width that includes the lateral extent of the surface states, not the
 structural soliton width.</li>
-<li>Linear interpolation passes through a midpoint with both dimer couplings at γ1/2 rather than the
-saddle-point stacking of the real shift path; no layer-dependent doping is included.</li>
+<li>Linear interpolation passes through a midpoint with both dimer couplings at γ1/2 rather than the saddle-point
+stacking of the real shift path.</li>
 <li>The k·p trigonal-warping legs extend to large momentum, so the LDOS is reliable within about ±0.4 eV.</li>
 </ul>
-<h2>Why the flat band bends at the wall</h2>
+
+<h2>2. The tip-gating estimate</h2>
 <p>Close to the wall the flat-band peak does not only fade, it moves: in spectrum 514, where the band is
-mostly empty and seen at positive bias, it climbs from +22 mV to about +55 mV; in spectrum 940, where it is
-mostly filled and seen at negative bias, it sinks from −32 mV to about −88 mV. The electrostatics-free model
-shifts it by only +5 meV in both cases, so the bend is not in the band structure. It is the tip gating the
-sample.</p>
-<p>The tunnel junction is a capacitor with the sample as one plate. How much of the bias drops across the
-vacuum gap and how much inside the sample depends on how easily the surface under the tip can pile up or
-shed charge. A large density of states at the Fermi level means a tiny change of potential moves a lot of
-charge, so the surface screens the tip almost perfectly and the whole bias falls across the gap. The flat
-band is exactly such a reservoir, about 10¹³ states per cm² within some 10 meV: far from the wall the
-top layer behaves like a metal plate, the bands inside do not move, and the peak sits at its true energy.
-At the wall the flat-band states leave the top layer (they sit in layer 2 on the stacking-fault side).
-What is left under the tip is the Dirac cone of the (+⁴−) surface near its node, a hundred times fewer
-states. The surface turns from a metal plate into a thin semiconductor, the field of the tip now reaches
-into it, and a fraction f of the bias drops inside the sample: the local bands shift rigidly by f·eV.</p>
-<p>The direction follows the sign of the bias, not the filling of the band. At positive sample bias the tip
-is negative with respect to the sample; it pushes electrons away and lifts the local bands, so a state that
-is truly at E<sub>FB</sub> is only reached at a larger bias and the peak appears higher. At negative bias
-the tip pulls electrons in, the bands bend down and the peak appears lower. The filling of the flat band
-only decides which sign of bias is needed to see it: an empty band is seen at positive bias and bends up,
-a filled one at negative bias and bends down. The effect feeds back on itself, because the bending moves
-the peak further from zero bias, where it is measured, so V<sub>app</sub> = E<sub>FB</sub> / [e(1 − f)].
-Both spectra give the same f ≈ 0.6 where the peak has lost two thirds of its height, with opposite bias;
-in 940 a feature at +69 mV on the stacking-fault side bends up by 50 to 90 mV next to the same wall where
-the flat band bends down, which rules out a fixed offset such as the polarization of the (+⁴−) stack.</p>
+mostly empty and seen at positive bias, it climbs from +22 mV to about +55 mV; in spectrum 940, where it is mostly
+filled and seen at negative bias, it sinks from −32 mV to about −88 mV. The SWMcC model without electrostatics shifts
+it by only +5 meV in both cases, so the bend is not in the band structure of the wall.</p>
+<p>The first explanation considered was tip gating. The tunnel junction is a capacitor with the sample as one plate;
+how much of the bias drops inside the sample depends on how easily the surface under the tip piles up or sheds
+charge. Far from the wall the flat band, about 10¹³ states per cm² within some 10 meV, makes the top layer a metal
+plate: the whole bias falls across the vacuum gap and the peak sits at its true energy. At the wall the flat-band
+states leave the top layer (on the stacking-fault side they sit in layer 2). If what is left under the tip were the
+Dirac cone of the (+⁴−) surface near its node, a fraction f of the bias would drop inside the sample and shift the
+local bands by f·eV: up at positive bias, down at negative bias, so that an empty band (seen at positive bias) bends
+up and a filled one bends down, with V<sub>app</sub> = E<sub>FB</sub> / [e(1 − f)].</p>
 <div class="tablewrap"><table>
 <tr><th>line spectrum</th><th>flat band far from the wall</th><th>at one third peak height</th><th>shift</th><th>f = 1 − V<sub>far</sub>/V<sub>app</sub></th></tr>
 <tr><td>514 (band mostly empty)</td><td>+22 mV</td><td>+49 to +60 mV</td><td>+27 to +38 mV</td><td>0.54 to 0.62</td></tr>
 <tr><td>940 (band mostly filled)</td><td>−32 mV</td><td>−88 mV</td><td>−56 mV</td><td>0.63</td></tr>
 </table></div>
-<p>Scale: a 0.7 nm gap gives C<sub>gap</sub> = ε₀/d ≈ 13 mF m⁻². The intact flat band has
-C<sub>q</sub> = e²D ≈ 1.6 F m⁻², so f ≈ 0.01 and the bending stays below 1 mV: the band is pinned. f ≈ 0.6 needs
-C<sub>q</sub> ≈ 9 mF m⁻², i.e. D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻², the value of the (+⁴−) surface cone
-10 to 20 meV from its Dirac point. The sign reversal between −30 and +70 mV in spectrum 940 also puts the
-flat-band voltage of the junction, set by the work-function difference of tip and sample, within a few tens
-of mV of zero.</p>
+<p>Scale: a 0.7 nm gap gives C<sub>gap</sub> = ε₀/d ≈ 13 mF m⁻². The intact flat band has C<sub>q</sub> = e²D ≈ 1.6 F m⁻²,
+so f ≈ 0.01: the band is pinned. f ≈ 0.6 needs C<sub>q</sub> ≈ 9 mF m⁻², D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻², the value
+of the (+⁴−) surface cone 10 to 20 meV from its Dirac point. The estimate treats the top layer alone; the layers
+below hold its potential as well (section 9), so the same holds for them. Both lines give the same f with opposite bias, and in 940
+an edge on the stacking-fault side at positive bias rises by 50 to 90 mV next to the same wall where the flat band at
+negative bias sinks; a rigid offset of the bands, such as a polarization of the (+⁴−) stack, would move both the same
+way. The estimate leaves open whether the density of states under the tip really falls that far while the flat-band
+peak is still visible. The self-consistent calculation below tests it, and at the fitted work function it does not
+find it: the top layer keeps about a quarter of its flat-band states at s = 0.75 and the tip moves the peak by a few
+millivolts.</p>
 
-<h2>Self-consistent tip-induced band bending (bandbending engine)</h2>
-<p>Three laterally uniform six-layer stacks under the same tip, each solved self-consistently
-(Hartree + γ0/γ1 tight binding, <code>GrapheneMultilayer</code> of the
-<a href="https://github.com/nemeslab-MFA/bandbending">bandbending</a> engine): the (+⁵) stack far from the
-wall, the wall itself with the top dimer shared between the (+⁵) bond (weight 1 − s) and the (+⁴−) bond
-(weight s, s = 0.75 at the position of the bend), and the (+⁴−) stack. The wall Hamiltonian closes
-a bond loop whose flux is the phase of the structure factor, so it is evaluated with a complex Hamiltonian
-averaged over that phase (<code>WallTB</code> in <code>stacking_wall_tibb.py</code>; it reproduces the
-engine's end members exactly and a brute-force zone sum to 1 %). Tip radius 20 nm,
-separation 0.7 nm, barrier 4.6 eV, 9 K, Gaussian
-width 10 meV of the tight-binding occupation and LDOS (the γ0/γ1 flat band is
-6 meV wide, the measured one 26 mV), lock-in 3.75 mV; 90 nm SiO₂ over the
-grounded Si. The doping is set from the measured flat-band energy of the (+⁵) side (the isolated stack is
-neutral with E<sub>F</sub> that far from its flat band); the fixed charge per layer this implies is used
-unchanged for the wall and the (+⁴−) stack, and the tip contact potential W<sub>tip</sub> − W<sub>sample</sub>
-is the value, scanned in 0.1 eV steps, at which the simulated (+⁵) spectrum (<code>tunneling_spectrum</code>:
-frozen-potential term plus band-bending term) is closest to the measurement far from the wall, one scale
-factor free.</p>
+<h2>3. Self-consistent electrostatics: the model, the (+⁵) fit and the tip work function</h2>
+<p>Laterally uniform six-layer stacks under the tip, each solved self-consistently (Poisson equation with
+Hartree + γ0/γ1 tight-binding layers, <code>GrapheneMultilayer</code> of the
+<a href="https://github.com/nemeslab-MFA/bandbending">bandbending</a> engine): the (+⁵) stack, the wall stack with the
+top dimer shared between the (+⁵) bond (weight 1 − s) and the (+⁴−) bond (weight s; s = 0.75 at the position of
+the measured wall spectrum), and the (+⁴−) stack. The wall Hamiltonian closes a bond loop whose flux is the phase of
+the structure factor, so it is evaluated with a complex Hamiltonian averaged over that phase (<code>WallTB</code> in
+<code>stacking_wall_tibb.py</code>; it reproduces the engine's end members exactly and a brute-force zone sum to
+1 %). Tip radius 20 nm, separation 0.7 nm, barrier 4.6 eV,
+9 K, Gaussian width 10 meV of the tight-binding occupation and LDOS (the
+bare γ0/γ1 flat band is 6 meV wide; with this Gaussian the simulated (+⁵) peak is 34 to 35 mV wide at half
+maximum, the measured one 42 to 45 mV), lock-in 3.75 mV; 90 nm SiO₂ over the
+grounded Si. The doping is set from the measured flat-band energy of the (+⁵) side (the isolated stack is neutral with
+E<sub>F</sub> that far from its flat band); the fixed charge per layer this implies is used unchanged for the wall and
+the (+⁴−) stack. The tip contact potential is the value, scanned in 0.1 eV steps, at which the simulated (+⁵)
+spectrum (<code>tunneling_spectrum</code>: frozen-potential term plus band-bending term) is closest to the
+measurement, one scale factor free.</p>
 <div class="tablewrap"><table>
 <tr><th>line spectrum</th><th>contact potential</th><th>E<sub>F</sub> − E<sub>CNP</sub></th><th>flat band (+⁵): measured / simulated</th><th>flat band at the wall: measured / simulated</th><th>U<sub>1</sub>(apex) − U<sub>1</sub>(far) at the peak: (+⁵) / wall / (+⁴−)</th><th>residual (+⁵) / wall / (+⁴−)</th></tr>
 <tr><td>514</td><td>+0.00 eV</td><td>-23 meV</td><td>+23 / +25 mV</td><td>+56 / +45 mV</td><td>+3 / +4 / -16 meV</td><td>0.32 / 0.34 / 0.38</td></tr><tr><td>940</td><td>+0.00 eV</td><td>+32 meV</td><td>-32 / -40 mV</td><td>-85 / -62 mV</td><td>-7 / -7 / +15 meV</td><td>0.32 / 0.36 / 0.27</td></tr>
 </table></div>
 <figure><img src="stacking_wall_tibb.png" alt="measured and simulated dI/dV at the three positions">
-<figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential
-term) far on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
+<figcaption>Measured dI/dV (black) and simulated top-layer dI/dV (orange, scaled; dashed: frozen-potential term) far
+on the (+⁵) side, at the wall and far on the (+⁴−) side, with the contact-potential scan.</figcaption></figure>
+
 <p><b>Tip work function.</b> No absolute work function enters the electrostatics. The engine takes the
 contact potential CPot = W<sub>tip</sub> − W<sub>ref</sub>, with W<sub>ref</sub> the depth of the stack's
 charge-neutrality point below vacuum, and places the tip at U<sub>tip</sub> = V + CPot; a positive CPot acts like a
@@ -204,6 +233,7 @@ sample, while the self-consistent calculation bends the top layer at the wall by
 −7 meV at the peak bias. The self-consistent model at CPot = 0 also bends the band further down than up (simulated −22 against +20 mV, ratio 1.13), through the charge balance of the wall stack, which grows with the distance of the far-field flat band from E<sub>F</sub> (1.44 times larger in 940). Under either mechanism the asymmetry follows from the different doping of
 the two regions and needs no contact potential.</p>
 
+<h2>4. Across the wall in the local approximation</h2>
 <p><b>What the calculation gives.</b> With the tip and the doping fixed on the (+⁵) side, the
 simulated flat-band peak at the wall moves in the measured direction for both fillings: up by
 +20 mV in spectrum 514 (measured +34 mV) and down by -22 mV in spectrum 940
@@ -243,7 +273,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 <figure><img src="stacking_wall_tibb_map_940.png" alt="simulated line spectrum across the wall, 940">
 <figcaption>Line spectrum 940, the same.</figcaption></figure>
 </div>
-<h2>Hybrid: the wall model with the Poisson potentials</h2>
+<h2>5. The SWMcC wall model with the self-consistent on-site energies</h2>
 <p>The two calculations are complementary: the k·p wall model has the wall and its fringes but no electrostatics,
 the Poisson solver has the electrostatics but, being axisymmetric, no wall. The notebook
 <code>examples/stacking_wall_hybrid.ipynb</code> joins them: it reads the Poisson outputs, refers the far-field
@@ -284,6 +314,55 @@ energy.</figcaption></figure>
 <figcaption>Apparent flat-band energy along the line: measured, local approximation and hybrid, followed until
 the peak has faded to 15 % of its far value.</figcaption></figure>
 
+<h2>6. Charge redistribution and tip-induced bending separated</h2>
+<p>Every stack of the local approximation was evaluated twice from the same self-consistent sweep: with
+the layer potentials under the apex, U0(V), as in the maps, and with the far-field potentials U<sub>far</sub> of the
+same stack at every bias, which contain the charge redistribution of the stack but no tip
+(<code>stacking_wall_separation.py</code>). The bend is the shift of the flat-band peak (its centroid) from that of the
+(+⁵) stack under the same conditions. At the position of the wall spectrum (s = 0.75) the bend is
++18 mV with the tip and +19 mV without it in 514, −22 and
+−24 mV in 940 (measured +34 and −53 mV): the bend of the model is charge
+redistribution, and the tip changes it by −0.9 and
++2.3 mV. The tip does move the peaks, by +3.6 and
+−6.9 mV on the (+⁵) stack at its bias, but by about as much at the wall, so the bend, a difference,
+keeps little of it. The lever arm of the tip on the top layer is 0.12 and 0.16
+on the (+⁵) stack at its bias and 0.11 and 0.14 at the wall at the
+wall-peak bias.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>s</th><th>bend with the tip</th><th>without the tip</th><th>tip-induced part</th></tr>
+<tr><td>514</td><td>0.00</td><td>+0.0 mV</td><td>+0.0 mV</td><td>+0.0 mV</td></tr><tr><td>514</td><td>0.15</td><td>+4.2 mV</td><td>+3.3 mV</td><td>+0.9 mV</td></tr><tr><td>514</td><td>0.30</td><td>+9.6 mV</td><td>+7.9 mV</td><td>+1.8 mV</td></tr><tr><td>514</td><td>0.45</td><td>+14.6 mV</td><td>+13.0 mV</td><td>+1.6 mV</td></tr><tr><td>514</td><td>0.60</td><td>+17.8 mV</td><td>+17.1 mV</td><td>+0.6 mV</td></tr><tr><td>514</td><td>0.75</td><td>+18.2 mV</td><td>+19.1 mV</td><td>−0.9 mV</td></tr><tr><td>514</td><td>0.90</td><td colspan="3">flat-band peak faded</td></tr><tr><td>514</td><td>1.00</td><td colspan="3">flat-band peak faded</td></tr><tr><td>940</td><td>0.00</td><td>+0.0 mV</td><td>+0.0 mV</td><td>+0.0 mV</td></tr><tr><td>940</td><td>0.15</td><td>−6.3 mV</td><td>−5.3 mV</td><td>−1.0 mV</td></tr><tr><td>940</td><td>0.30</td><td>−13.2 mV</td><td>−11.7 mV</td><td>−1.5 mV</td></tr><tr><td>940</td><td>0.45</td><td>−18.8 mV</td><td>−18.0 mV</td><td>−0.8 mV</td></tr><tr><td>940</td><td>0.60</td><td>−22.1 mV</td><td>−22.6 mV</td><td>+0.5 mV</td></tr><tr><td>940</td><td>0.75</td><td>−22.1 mV</td><td>−24.4 mV</td><td>+2.3 mV</td></tr><tr><td>940</td><td>0.90</td><td colspan="3">flat-band peak faded</td></tr><tr><td>940</td><td>1.00</td><td colspan="3">flat-band peak faded</td></tr>
+</table></div>
+<p><b>A flat band as wide as the measured one.</b> With the Gaussian of 10 meV used so far the
+simulated (+⁵) peak is 34 and 35 mV wide at half
+maximum, the measured one 45 (514) and 42 mV (940).
+σ = 13.7 and 12.5 meV reproduce the measured widths
+(<code>stacking_wall_separation.py calibrate</code>), and the (+⁵) stack and the wall stacks were solved again with
+that σ in the occupation as well as in the spectrum, so that the screening sees the wider band (contact potential 0,
+biases ±0.2 V in 25 mV steps; <code>stacking_wall_separation.py wide</code>). The lever arm of the tip on the top
+layer at the wall goes from 0.11 to 0.12 (514) and from
+0.14 to 0.14 (940); on the (+⁵) side, at its own bias, from
+0.12 to 0.11 and from 0.16 to 0.15.
+At s = 0.75 the flat band bends by +16 mV with the tip and +16 mV without it in
+514 (σ = 10 meV: +18 and +19 mV), −22 and −24 mV in 940
+(−22 and −24 mV); measured +34 and −53 mV.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>σ</th><th>s</th><th>bend with the tip</th><th>without the tip</th><th>tip-induced part</th><th>peak height (of (+⁵))</th></tr>
+<tr><td>514</td><td>13.7 meV</td><td>0.75</td><td>+15.9 mV</td><td>+16.1 mV</td><td>−0.2 mV</td><td>26 %</td></tr><tr><td>940</td><td>12.5 meV</td><td>0.75</td><td>−21.6 mV</td><td>−23.7 mV</td><td>+2.1 mV</td><td>27 %</td></tr>
+</table></div>
+<figure><img src="stacking_wall_separation.png" alt="bend with and without the tip against s">
+<figcaption>Flat-band peak against that of the (+⁵) stack for the stacks of the local approximation, with the tip
+(orange) and without it (blue), σ = 10 meV (lines) and the σ that matches the measured width (open markers); star:
+the measured bend at the wall spectrum.</figcaption></figure>
+<p><b>Why the bend needs no tuned work function in this picture.</b> A bend from charge redistribution belongs to
+the sample: its sign follows the filling of the flat band, up where the band is empty and down where it is filled,
+whatever the tip. Pure tip gating with a lever arm confined to the wall gives a bend whose sign is that of the bias
+measured from the zero-TIBB bias, −CPot; seeing an upward bend at +23 mV and a downward one at −32 mV then requires
+|CPot| below about 25 meV. Even when the tip does gate, with the same lever arm α at the wall and on the (+⁵) side,
+the apparent energies are V = (E + α CPot)/(1 − α), and the bend, V<sub>wall</sub> − V<sub>(+⁵)</sub> =
+(E<sub>wall</sub> − E<sub>(+⁵)</sub>)/(1 − α), no longer contains CPot: a uniform lever arm only magnifies the intrinsic
+shift. The contact potential matters only through a lever arm that differs between the wall and the (+⁵) side, and
+that is the situation the self-consistent model does not produce.</p>
+<h2>7. The tip's own field in the SWMcC model</h2>
 <h3>The tip-induced bump</h3>
 <p>The Poisson solver also gives the potential under the apex, U0,l(V) − U_far,l, which moves with the tip. It is
 added to the hybrid as a Gaussian bump of width w = √(2Rd) = 5.3 nm centred on the tip, with the
@@ -291,9 +370,10 @@ amplitude of the stack at s(x_tip) at the bias where the flat-band peak is measu
 wall model is solved once per tip position (cell 300 nm, k_y step 0.002 Å⁻¹, 6 meV
 broadening; <code>stacking_wall_tibb_bump.py</code>). The table gives the apparent flat-band peak under the tip
 without and with the bump (the energy grid of the peak is 2.5 meV; the centroid of the peak resolves below that);
-the largest change the bump makes to the peak centroid is 7.3 mV (514), 11.4 mV (940), against a measured bend of 35 to 55 mV. The k·p flat band follows 39 to 80 % of the top-layer bump, more on the (+⁵) side, where the flat-band state lives on the top layer, than inside the wall. At the position of the measured wall spectrum (-4.9 nm from the wall centre in 514, -3.1 nm in 940) the bump shifts the centroid by +3.6 and -6.2 mV, so the hybrid bends by +22 mV without and about +26 mV with the tip's own field in 514 (measured +34 mV), -15 and -21 mV in 940 (measured -53 mV). The tip's field adds to the bend in the measured direction in both lines, 16 % (514) and 41 % (940) of the far-field part, and the sum, 77 % and 40 % of the measured bend, is close to what the local approximation gives with the tip in it. The tip is a real but minor part of the bend in this model, not the missing one.
-(Before the layer-order correction the bump sat on the bottom layer and moved the peak by at most 2.5 mV, which was
-read as the tip not moving the flat band at all.)</p>
+the largest change the bump makes to the peak centroid is 7.3 mV (514), 11.4 mV (940), against a measured bend of 35 to 55 mV. The k·p flat band follows 39 to 80 % of the top-layer bump, more on the (+⁵) side, where the flat-band state lives on the top layer, than inside the wall. At the position of the measured wall spectrum (-4.9 nm from the wall centre in 514, -3.1 nm in 940) the bump shifts the centroid by +3.6 and -6.2 mV. The bend, however, is measured against the (+⁵) peak, which the tip also shifts, at its own bias: by +2.5 mV (514) and -4.5 mV (940) with the tip 20 nm into the (+⁵) side (<code>stacking_wall_cpot_sensitivity.py</code>, δ = 0). There the flat band is a top-layer state and follows the whole bump; inside the wall it follows about half. The tip's contribution to the bend is the difference, +1.1 mV (514) and -1.7 mV (940): the hybrid bends by +22 mV without and +24 mV with the tip's own field in 514 (measured +34 mV), -15 and -17 mV in 940 (measured -53 mV). In this model the tip moves the flat band nearly as much far from the wall as at it, and its own field is not what bends the band.
+(Before the layer-order correction the bump sat on the bottom layer and moved the peak by at most 2.5 mV; the
+version of 2026-11-10 then added the shift at the wall to the bend without subtracting the shift of the (+⁵) reference,
+which overstated the tip's contribution as +4 and −6 mV.)</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>top-layer bump</th><th>peak without / with bump</th><th>change of the maximum</th><th>change of the centroid</th></tr>
 <tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+5 meV</td><td colspan="3">flat-band peak faded (height below 15 % of the far value)</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+6 meV</td><td>+45 / +48 mV</td><td>+2.5 mV</td><td>+3.0 mV</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7 meV</td><td>+45 / +48 mV</td><td>+2.5 mV</td><td>+4.4 mV</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9 meV</td><td>+43 / +48 mV</td><td>+5.0 mV</td><td>+6.0 mV</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+9 meV</td><td>+38 / +45 mV</td><td>+7.5 mV</td><td>+7.3 mV</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-9 meV</td><td colspan="3">flat-band peak faded (height below 15 % of the far value)</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-9 meV</td><td>-50 / -52 mV</td><td>-2.5 mV</td><td>-3.5 mV</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-12 meV</td><td>-47 / -52 mV</td><td>-5.0 mV</td><td>-6.3 mV</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-14 meV</td><td>-42 / -52 mV</td><td>-10.0 mV</td><td>-9.0 mV</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-15 meV</td><td>-37 / -47 mV</td><td>-10.0 mV</td><td>-11.4 mV</td></tr>
@@ -301,6 +381,40 @@ read as the tip not moving the flat band at all.)</p>
 <figure><img src="stacking_wall_bump.png" alt="top-layer LDOS under the tip with and without the bump">
 <figcaption>Top-layer LDOS under the tip for the hybrid without (blue) and with (orange) the tip-induced bump at
 each tip position, and the resulting flat-band peak against the tip position.</figcaption></figure>
+
+<h3>Sensitivity to the tip work function</h3>
+<p>The tip-induced numbers above take the tip work function equal to the sample's: CPot = 0, so the tip does not
+bend the (+⁵) bands at zero bias. That value is fitted, not assumed. The contact-potential scan of the (+⁵) spectra
+has its lowest residual at zero for both lines (514: 0.32 at 0 against 0.39 at −0.1 eV and 0.40 at +0.1 eV; 940: 0.32 at 0 against 0.49 at −0.1 eV and 0.36 at +0.1 eV), which leaves CPot = 0 ± 0.05 eV; the ε = 2.6 polarized-stack fit of 940 with the offset free puts it at +10 meV; and if one tip recorded both lines, the asymmetry of the two bends gives −1 meV (−5 to +3 meV within half a bias step).</p>
+<p>An offset δ of the tip work function from the sample's enters the electrostatics only through the tip potential,
+U<sub>tip</sub> = V + δ, so the tip-induced bending at bias V is that of the fitted sweeps at V + δ. The k·p wall
+model with the Gaussian bump was solved for δ from −350 to +200 meV (the bias range of the
+sweeps sets the limits), with the tip at the position of the measured wall spectrum and far on the (+⁵) side, each at
+its measured peak bias (<code>stacking_wall_cpot_sensitivity.py</code>). The tip-induced part of the bend is the
+centroid shift at the wall minus that on the (+⁵) side; added to the far-field bend of the hybrid
+(+22 mV in 514, −15 mV in 940) it gives the model bend in the
+table and the figure. Near δ = 0 the bend changes by 1 mV (514) and -2 mV
+(940) per 100 meV of offset, so the fitted ±50 meV moves it by at most 0 and
+1 mV. The measured bend (+34 and −53 mV) is reached with
+no offset in the computed range (the largest bend is +24 mV, at δ = +0 meV, 70 % of the measured) in 514 and no offset in the computed range (the largest bend is −17 mV, at δ = +100 meV, 33 % of the measured) in 940.
+The tip moves the (+⁵) reference with the wall: there the flat band is a top-layer state and follows the whole
+tip-induced potential, inside the wall it follows about half, so an offset that pulls the wall peak further also
+pulls the reference, and the bend changes much less than either peak.
+The lines were recorded on different days, possibly with different tips, but each line's own (+⁵) fit holds its tip
+near zero: the residual at −0.2 / +0.2 eV is 0.45 / 0.53 in 514 and
+0.59 / 0.45 in 940, against 0.32 and 0.32 at zero.
+An offset of −0.2 eV would also move the (+⁵) peak itself under the tip by −12 mV (514) and −33 mV (940) at fixed doping. The
+vacuum work-function difference of a Pt tip (+1.05 eV) lies far outside both the computed range and what the spectra
+allow.</p>
+<div class="tablewrap"><table>
+<tr><th>δ</th><th>514: top-layer bump, wall / (+⁵)</th><th>514: tip part</th><th>514: bend</th>
+<th>940: top-layer bump, wall / (+⁵)</th><th>940: tip part</th><th>940: bend</th></tr>
+<tr><td>−350 meV</td><td>−56 / −22 meV</td><td>−10 mV</td><td>+13 mV</td><td>−75 / −71 meV</td><td>+17 mV</td><td>+2 mV</td></tr><tr><td>−200 meV</td><td>−34 / −14 meV</td><td>−6 mV</td><td>+16 mV</td><td>−53 / −42 meV</td><td>+6 mV</td><td>−9 mV</td></tr><tr><td>−100 meV</td><td>−15 / −8 meV</td><td>−2 mV</td><td>+21 mV</td><td>−34 / −23 meV</td><td>+1 mV</td><td>−14 mV</td></tr><tr><td>+0 meV</td><td>+6 / +3 meV</td><td>+1 mV</td><td>+24 mV</td><td>−12 / −5 meV</td><td>−2 mV</td><td>−17 mV</td></tr><tr><td>+100 meV</td><td>+29 / +18 meV</td><td>+0 mV</td><td>+23 mV</td><td>+11 / +9 meV</td><td>−2 mV</td><td>−17 mV</td></tr><tr><td>+200 meV</td><td>+52 / +36 meV</td><td>−4 mV</td><td>+18 mV</td><td>+33 / +19 meV</td><td>+2 mV</td><td>−13 mV</td></tr>
+</table></div>
+<figure><img src="stacking_wall_cpot_sensitivity.png" alt="model bend at the wall against the tip work-function offset">
+<figcaption>Flat-band bend at the measured wall position against the offset δ of the tip work function from the
+sample's: k·p wall model with the far-field potentials of the hybrid and the tip-induced bump (blue), the far-field
+part alone (dotted) and the measurement (dashed). Grey band: the range of δ allowed by the (+⁵) fits.</figcaption></figure>
 
 <h3>The lateral problem</h3>
 <p>The local approximation was dropped last. The Poisson equation was solved in three dimensions with the wall in
@@ -333,8 +447,8 @@ the tip at the wall centre has a full width at half maximum of 10 nm (514; 4 nm 
 k·p wall model in place of the Gaussian bump, the maximum of the k·p flat-band peak under the tip moves by at most 7.5 mV (its energy grid is 2.5 mV) and its centroid by at most 9.3 mV, against 11.4 mV for the Gaussian bump at the same positions: the bump was an adequate stand-in for the lateral tip potential. The conclusion of the local approximation
 stands: with the lateral problem solved, the self-consistent tip-induced bending of the top layer at the bias of the
 wall peak is 4 to 14 meV at the k·p positions, it moves the flat band under the tip
-by up to 9 mV in the measured direction, and the measured 35 to 55 mV bend is not a tip-gating effect
-of this model.</p>
+by up to 9 mV in the measured direction, most of which it also does to the (+⁵) reference at its own
+bias, and the measured 35 to 55 mV bend is not a tip-gating effect of this model.</p>
 <div class="tablewrap"><table>
 <tr><th>line</th><th>tip from the wall centre</th><th>s at the tip</th><th>apex bending, layer 1: uniform / lateral</th><th>layer 2: uniform / lateral</th><th>k·p peak tip-free / with the tip (change)</th></tr>
 <tr><td>514</td><td>-10 nm</td><td>0.91</td><td>+4.1 / +4.5 meV</td><td>+1.9 / +2.1 meV</td><td>flat-band peak faded</td></tr><tr><td>514</td><td>-6 nm</td><td>0.80</td><td>+5.6 / +6.1 meV</td><td>+2.7 / +2.9 meV</td><td>+40 / +43 mV (centroid +3.1)</td></tr><tr><td>514</td><td>-3 nm</td><td>0.66</td><td>+7.7 / +7.9 meV</td><td>+3.8 / +3.9 meV</td><td>+38 / +43 mV (centroid +4.2)</td></tr><tr><td>514</td><td>+0 nm</td><td>0.50</td><td>+9.0 / +8.8 meV</td><td>+4.6 / +4.5 meV</td><td>+38 / +43 mV (centroid +5.4)</td></tr><tr><td>514</td><td>+4 nm</td><td>0.29</td><td>+8.8 / +8.6 meV</td><td>+4.7 / +4.6 meV</td><td>+33 / +38 mV (centroid +6.3)</td></tr><tr><td>940</td><td>-10 nm</td><td>0.97</td><td>-5.8 / -5.9 meV</td><td>-2.8 / -2.9 meV</td><td>flat-band peak faded</td></tr><tr><td>940</td><td>-6 nm</td><td>0.90</td><td>-5.2 / -5.6 meV</td><td>-2.6 / -2.8 meV</td><td>-55 / -60 mV (centroid -3.5)</td></tr><tr><td>940</td><td>-3 nm</td><td>0.75</td><td>-4.4 / -6.9 meV</td><td>-2.4 / -3.7 meV</td><td>-55 / -60 mV (centroid -4.3)</td></tr><tr><td>940</td><td>+0 nm</td><td>0.50</td><td>-10.9 / -11.2 meV</td><td>-6.0 / -6.2 meV</td><td>-47 / -55 mV (centroid -6.3)</td></tr><tr><td>940</td><td>+4 nm</td><td>0.19</td><td>-14.2 / -13.6 meV</td><td>-8.1 / -7.8 meV</td><td>-42 / -50 mV (centroid -9.3)</td></tr>
@@ -345,6 +459,7 @@ tip at several positions (orange). Middle: tip-induced bending under the apex ag
 solve (solid) and local approximation (dashed), layers 1 and 2. Right: flat-band peak under the tip from the k·p
 model with the lateral potentials, with and without the tip, and the Gaussian-bump result.</figcaption></figure>
 
+<h2>8. The doping model of 940</h2>
 <h3>Refit of the (+⁵) spectrum of 940: interlayer ε, starting doping and SiO₂ charge</h3>
 <p>The (+⁵) fit above varied only the contact potential, with ε = 2.6 between the layers and the doping set by the
 tip-free flat-band position. It puts the flat band within 8 mV, but not the side bands: the lower side-band peak,
@@ -523,13 +638,66 @@ the local approximation (right).</figcaption></figure>
 peak along the line, measured and for all models.</figcaption></figure>
 </div>
 
-<p><b>Reading.</b> In the local approximation the self-consistent tip-induced band bending is too small to
-bend the flat band by the measured 35 to 55 mV while the peak is still visible; for that the density of
-states at E<sub>F</sub> under the tip would have to fall to the (+⁴−) level, about 5 × 10¹² eV⁻¹ cm⁻², and
-only on the (+⁴−) stack itself does the tip reach 15 to 30 meV of bending. The tip's field reaching across the wall into the weakly screening (+⁴−) region was then checked with the three-dimensional solve: it changes the bending under the apex by at most 2.5 meV (at one position of 940 where the local response has a kink; 1.8 meV or less elsewhere), so the lateral problem does not rescue the tip-gating explanation either. The fit of the (+⁵) spectra leaves the contact
-potential within about ±0.05 eV of zero, consistent with the sign reversal of the bend between the two
-measurements.</p>
-
+<h3>Tip work function as a third fit parameter (ε = 2.6)</h3>
+<p>With the offset δ of the tip work function from the sample's free next to ΔE<sub>F</sub> and the hole density
+(<code>stacking_wall_epsfit/fit_cpot.py</code>, compass search from the flat-band fit) the five peak positions of the
+(+⁵) spectrum of 940 improve from 22.1 to 17.8 mV rms at ΔE<sub>F</sub> =
+47.5 meV, 87×10¹⁰ holes and δ = +10 meV: the tip work function
+stays at the sample's.</p>
+<figure><img src="stacking_wall_eps26_cpot_940.png" alt="eps 2.6 fit with the tip work function free">
+<figcaption>Line 940, (+⁵) side, ε = 2.6: measured dI/dV against the start and the best point of the three-parameter
+search, and the search path.</figcaption></figure>
+<p><b>Observation (2026-11-09).</b> In the ε = 2.6 best-peak fit (ΔE<sub>F</sub> = 40 meV, about 1.5 × 10¹² holes) the
+spectrum computed without the tip has a weak hole-side van Hove maximum near −330 mV that disappears once the tip is
+in the solve, while the structure near −215 mV survives (at −222 mV). The measured spectra lack the −330 mV
+maximum as well: the negative-bias spectrum is shaped by the tip's field.</p>
+<h2>9. How could the lever arm be larger?</h2>
+<p>The top layer under the apex sits between the tip, coupled through the vacuum gap,
+C<sub>gap</sub> ≈ ε₀/d ≈ 13 mF m⁻² at d = 0.7 nm, and two capacitances that hold its potential: its own
+quantum capacitance e²D<sub>1</sub>(E<sub>F</sub>) (16 mF m⁻² per 10¹³ eV⁻¹ cm⁻²) and the layer below, through the
+interlayer gap, C<sub>int</sub> = ε₀ε/c ≈ 69 mF m⁻² (ε = 2.6, c = 0.335 nm), in series with that layer's own
+quantum capacitance. The lever arm is α ≈ C<sub>gap</sub>/(C<sub>gap</sub> + e²D<sub>1</sub> + C<sub>below</sub>). As
+long as layer 2 has states at E<sub>F</sub>, C<sub>below</sub> ≈ C<sub>int</sub> and α ≤ C<sub>gap</sub>/(C<sub>gap</sub> +
+C<sub>int</sub>) ≈ 0.16, whatever the top layer does. The model's 0.11 to 0.16 sit at this cap: at the wall the
+flat-band states leave the top layer for layer 2 and screen the tip from 0.34 nm below. Widening the flat band to the measured width changes the lever arm by at most 0.01 at the wall and 0.02 on the (+⁵) side: E<sub>F</sub> lies 22 to 33 meV from the band, so a wider Gaussian puts more of the band's tail at E<sub>F</sub>, and in any case the cap, not the top layer, sets α. The measured bends need
+α ≈ 0.6, C<sub>below</sub> + e²D<sub>1</sub> ≈ 9 mF m⁻²: about eight interlayer gaps in series, more than the stack has.
+The tip's field would have to reach through the whole six-layer stack, with no layer under the apex holding states
+at E<sub>F</sub>. Ways α could be larger:</p>
+<ul>
+<li><b>A stack without states at E<sub>F</sub> under the tip.</b> A gap at E<sub>F</sub> through all layers: a correlated gap
+of the flat band, or the gap a displacement field opens in a rhombohedral stack near neutrality (the field-induced gap
+is in the γ0/γ1 model and appears where E<sub>F</sub> is in the gap, as in the polarized stacks, where the tip's share grew
+to −22 meV at s = 0.45 for ε = 15; exchange is not in the model).</li>
+<li><b>A smaller interlayer permittivity.</b> ε = 1 instead of 2.6 lowers C<sub>int</sub> to 26 mF m⁻² and
+raises the cap to 0.32; values below the σ-band 2.6 have no physical basis.</li>
+<li><b>A closer tip.</b> d = 0.4 nm raises C<sub>gap</sub> to 22 mF m⁻² and the cap to
+0.24. The tip radius changes the extent of the gated region more than α under the apex.</li>
+<li><b>A lever arm larger at the wall than on the (+⁵) side.</b> This is what tip gating needs: a uniform α moves the
+(+⁵) reference as well and leaves only the magnified intrinsic shift (section 6). The (+⁵) spectra limit α there: in
+the fits of 940 (section 8) the lower side band at −256 mV comes out 36 to 41 mV too deep under the tip, so the
+model's tip already bends the (+⁵) surface at that bias more than the measurement shows, not less.</li>
+</ul>
+<p><b>What the spectra say about the states at E<sub>F</sub>.</b> On the (+⁵) side the measured dI/dV at zero bias is 0.41 (514) and 0.28 (940) of the flat-band peak, the model's 0.36 and 0.24: the model does not overstate the weight at E<sub>F</sub>. At the wall the measured zero-bias dI/dV is 0.44 and 0.43 of the (+⁵) value, the model's 0.11 and 0.14: the measured top layer is less depleted at E<sub>F</sub> than the model's, not more. Neither points to the missing depletion (both are top-layer LDOS; the layers below are not seen by the tip).</p>
+<h2>10. Open issues</h2>
+<ul>
+<li><b>Width of the flat band.</b> The bare γ0/γ1 flat band is 6 meV wide; a Gaussian of 10 meV in the occupation and
+the LDOS gives a simulated (+⁵) peak of 34 to 35 mV against 42 to 45 mV measured. Section 6 widens the Gaussian to the
+measured width. A Gaussian keeps the band's weight and centre; γ3, γ4 and Δ′ (the bandbending plan's phase P5) would
+also reshape the band and move weight between layers.</li>
+<li><b>Doping model.</b> The charge-balance shift exists with a fixed charge per layer (uniform doping) and nearly
+vanishes with the doping compensated in the SiO₂ (polarized stack), which fits the (+⁵) spectrum of 940 better at
+ε = 2.6. The per-layer charge also puts the (+⁴−) Fermi level 30 to 40 meV from its neutrality point, where the
+measurement has it near neutrality; the charge-balance shift it produces is an upper estimate.</li>
+<li><b>The (+⁴−)-side edge.</b> In 940 the lowest edge above E<sub>F</sub> on the stacking-fault side rises from +66 to
++143 mV within 5 nm of the wall centre, over a stretch where s(x) only falls from 1.00 to 0.86. No model run follows
+it; it rises at positive bias next to the wall where the flat band sinks at negative bias, which a rigid potential
+shift cannot do and tip gating does.</li>
+<li><b>Tests on the instrument.</b> A tip-gating bend scales with the gap capacitance and with the tip work function;
+a charge-balance bend does not. The bend against the setpoint (tip height) at one wall, and at the same wall with a
+tip of different work function, separates them.</li>
+<li><b>Different tips.</b> 514 and 940 were recorded on different days. One contact potential for both lines is an
+assumption of the asymmetry fit; each line's own (+⁵) fit gives 0 ± 0.05 eV on its own.</li>
+</ul>
 <footer>Kandrai et al., arXiv:2610.20905 (2026) · few-layer-graphite, branch claude/eloquent-franklin-q9q4cb ·
 line spectra 514 and 940 are not part of the repository.</footer>
 </main>

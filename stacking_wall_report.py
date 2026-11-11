@@ -1343,7 +1343,7 @@ tip adding {_mv(u.get('tip_bump_net'), 1)} and {_mv(d.get('tip_bump_net'), 1)} m
         if ru and rd:
             wide_txt = (f" Widening the Gaussian of the occupation and the LDOS from 10 meV to {1e3 * wu['sigma']:.1f} and "
                         f"{1e3 * wd['sigma']:.1f} meV, which gives the measured flat-band width (42 to 45 mV against 34 to 35 mV), "
-                        f"raises the lever arm at the wall to {abs(wu['lever_wall']):.2f} and {abs(wd['lever_wall']):.2f} and "
+                        f"leaves the lever arm at the wall at {abs(wu['lever_wall']):.2f} and {abs(wd['lever_wall']):.2f} and "
                         f"gives bends of {_mv(ru['tip'])} and {_mv(rd['tip'])} mV with the tip, {_mv(ru['free'])} and "
                         f"{_mv(rd['free'])} mV without it.")
     p3 = f"""<p>A bend from charge redistribution belongs to the sample: its sign follows the filling of the flat band, so it
@@ -1354,9 +1354,12 @@ compensated by charge in the SiO₂ (the polarized stack that fits the (+⁵) sp
 wall's charge rearrangement becomes a dipole inside the stack and the bend falls to {_mv(pol.get('_eps26_fb'), 1)} mV.
 No model run produces the rising edge on the (+⁴−) side.{wide_txt}</p>"""
     p4 = """<p>The status: charge redistribution gives the sign and about half the size of the bend; the rest, and the
-rising (+⁴−) edge, need a tip lever arm several times larger at the wall than on the (+⁵) side, which the model does
-not produce (section 9 lists how it could arise). The measurement that separates the two is the bend against the tip
-height at one wall: a tip-gating bend scales with the gap capacitance, a charge-redistribution bend does not.</p>"""
+rising (+⁴−) edge, need a tip lever arm of about 0.6 at the wall. The model cannot get there by thinning the top layer:
+as long as the layer below has states at E<sub>F</sub>, it holds the top layer through the interlayer capacitance and caps
+the lever arm near 0.16, where the model sits, with or without a flat band widened to the measured width. A lever arm of
+0.6 needs the tip's field to reach through the whole stack, with no layer under the apex holding states at E<sub>F</sub>
+(section 9). The measurement that separates the two mechanisms is the bend against the tip height at one wall: a
+tip-gating bend scales with the gap capacitance, a charge-redistribution bend does not.</p>"""
     return p1 + p2 + p3 + p4
 
 
@@ -1458,7 +1461,7 @@ def separation_numbers(states):
         h0 = {k: r0[k]["height"] for k in ("tip", "free")}
         tab = []
         for r in rows:
-            alive = all(r[k]["height"] > 0.15 * h0[k] for k in ("tip", "free"))
+            alive = all(r[k]["height"] > 0.15 * h0[k] and abs(r[k]["peak"] - r0[k]["peak"]) < 0.06 for k in ("tip", "free"))
             tab.append(dict(s=r["s"], alive=alive, tip=r["tip"]["centroid"] - r0["tip"]["centroid"],
                             free=r["free"]["centroid"] - r0["free"]["centroid"]))
         sw_ = min(tab, key=lambda q: abs(q["s"] - d["s_wall"]))
@@ -1568,34 +1571,79 @@ shift. The contact potential matters only through a lever arm that differs betwe
 that is the situation the self-consistent model does not produce.</p>"""
 
 
+def zero_bias_numbers(states):
+    """dI/dV near zero bias (within 6 mV): wall over (+5), measured and simulated (sigma = 10 meV), and the
+    (+5) zero-bias value over the (+5) flat-band peak."""
+    out = {}
+    for t, m in states.items():
+        Vm, fb = np.asarray(m["measured"]["bias"]), np.asarray(m["fine_bias"])
+        rg_m, w_m = np.asarray(m["measured"]["rg"], float), np.asarray(m["measured"]["wall"], float)
+        rg_s = np.asarray(m["scan"][f"{m['best_cpot']:+.3f}"]["didv"])
+        w_rec = m["runs"].get(f"wall_s{m['settings']['s']:.2f}")
+        if w_rec is None:
+            continue
+        w_s = np.asarray(w_rec["didv"])
+        z = lambda V, y: float(np.mean(y[np.abs(V) <= 0.006]))   # noqa: E731
+        E_fb = m["settings"]["E_fb_measured"]
+        pk = lambda V, y: float(np.max(y[np.abs(V - E_fb) <= 0.03]))   # noqa: E731
+        out[t] = dict(wall_m=z(Vm, w_m) / z(Vm, rg_m), wall_s=z(fb, w_s) / z(fb, rg_s),
+                      tail_m=z(Vm, rg_m) / pk(Vm, rg_m), tail_s=z(fb, rg_s) / pk(fb, rg_s))
+    return out
+
+
 def lever_arm_text(states):
     nums = separation_numbers(states)
+    zb = zero_bias_numbers(states)
+    eps0, d, c, eps = 8.854e-12, 0.7e-9, 0.335e-9, 2.6
+    cg, ci = eps0 / d, eps0 * eps / c
+    cap = lambda cg_, ci_: cg_ / (cg_ + ci_)   # noqa: E731
     lev = ""
     if nums:
         vals = [abs(v["lever_wall"]) for v in nums.values() if v.get("lever_wall")] + [abs(v["lever_rg"]) for v in nums.values()]
-        lev = f" The self-consistent model gives {min(vals):.2f} to {max(vals):.2f} on both sides of the wall."
-    return f"""<p>The top layer under the apex is a capacitor divider: the tip couples to it through the vacuum gap,
-C<sub>gap</sub> ≈ ε₀/d ≈ 13 mF m⁻² at d = 0.7 nm, and its potential is held by its own quantum capacitance
-e²D(E<sub>F</sub>) and by the layers below. The lever arm is roughly α ≈ C<sub>gap</sub>/(C<sub>gap</sub> +
-e²D(E<sub>F</sub>) + C<sub>below</sub>), with e²D ≈ 16 mF m⁻² per 10¹³ eV⁻¹ cm⁻². The measured bends need α ≈ 0.6 at
-the wall: e²D + C<sub>below</sub> ≈ 9 mF m⁻², D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻².{lev} Ways it could be larger:</p>
+        lev = f"{min(vals):.2f} to {max(vals):.2f}"
+    wide = ""
+    if nums and all("wide" in v for v in nums.values()):
+        wide = (" Widening the flat band to the measured width changes the lever arm by at most "
+                f"{max(abs(abs(v['wide']['lever_wall']) - abs(v['lever_wall'])) for v in nums.values()):.2f} at the wall and "
+                f"{max(abs(abs(v['wide']['lever_rg']) - abs(v['lever_rg'])) for v in nums.values()):.2f} on the (+⁵) side: E<sub>F</sub> "
+                "lies 22 to 33 meV from the band, so a wider Gaussian puts more of the band's tail at E<sub>F</sub>, and in any "
+                "case the cap, not the top layer, sets α.")
+    data = ""
+    if len(zb) == 2:
+        t1, t2 = list(zb)
+        data = (f"<p><b>What the spectra say about the states at E<sub>F</sub>.</b> On the (+⁵) side the measured dI/dV at zero bias "
+                f"is {zb[t1]['tail_m']:.2f} ({t1}) and {zb[t2]['tail_m']:.2f} ({t2}) of the flat-band peak, the model's "
+                f"{zb[t1]['tail_s']:.2f} and {zb[t2]['tail_s']:.2f}: the model does not overstate the weight at E<sub>F</sub>. At the "
+                f"wall the measured zero-bias dI/dV is {zb[t1]['wall_m']:.2f} and {zb[t2]['wall_m']:.2f} of the (+⁵) value, the "
+                f"model's {zb[t1]['wall_s']:.2f} and {zb[t2]['wall_s']:.2f}: the measured top layer is less depleted at "
+                "E<sub>F</sub> than the model's, not more. Neither points to the missing depletion (both are top-layer "
+                "LDOS; the layers below are not seen by the tip).</p>")
+    return f"""<p>The top layer under the apex sits between the tip, coupled through the vacuum gap,
+C<sub>gap</sub> ≈ ε₀/d ≈ {1e3 * cg:.0f} mF m⁻² at d = 0.7 nm, and two capacitances that hold its potential: its own
+quantum capacitance e²D<sub>1</sub>(E<sub>F</sub>) (16 mF m⁻² per 10¹³ eV⁻¹ cm⁻²) and the layer below, through the
+interlayer gap, C<sub>int</sub> = ε₀ε/c ≈ {1e3 * ci:.0f} mF m⁻² (ε = 2.6, c = 0.335 nm), in series with that layer's own
+quantum capacitance. The lever arm is α ≈ C<sub>gap</sub>/(C<sub>gap</sub> + e²D<sub>1</sub> + C<sub>below</sub>). As
+long as layer 2 has states at E<sub>F</sub>, C<sub>below</sub> ≈ C<sub>int</sub> and α ≤ C<sub>gap</sub>/(C<sub>gap</sub> +
+C<sub>int</sub>) ≈ {cap(cg, ci):.2f}, whatever the top layer does. The model's {lev} sit at this cap: at the wall the
+flat-band states leave the top layer for layer 2 and screen the tip from 0.34 nm below.{wide} The measured bends need
+α ≈ 0.6, C<sub>below</sub> + e²D<sub>1</sub> ≈ 9 mF m⁻²: about eight interlayer gaps in series, more than the stack has.
+The tip's field would have to reach through the whole six-layer stack, with no layer under the apex holding states
+at E<sub>F</sub>. Ways α could be larger:</p>
 <ul>
-<li><b>Fewer states at E<sub>F</sub> under the tip.</b> A wider flat band (tested above at the measured width), a gap at
-E<sub>F</sub> (a correlated gap of the flat band, or the gap the displacement field opens in rhombohedral stacks; the
-field-induced gap is in the γ0/γ1 model, exchange is not), or a top flat band that the tip has completely filled or
-emptied under the apex, which makes the lever arm grow with |V|.</li>
-<li><b>Weaker screening from below.</b> C<sub>below</sub> is the series of the interlayer capacitances and the
-quantum capacitances of the lower layers; a smaller interlayer permittivity or lower layers with fewer states at
-E<sub>F</sub> (E<sub>F</sub> in a gap of the stack, as in the polarized stacks, where the tip's share grew to −22 meV at
-s = 0.45 for ε = 15) let more of the tip's field into the top layer.</li>
-<li><b>A larger gap capacitance.</b> A smaller tip-sample distance raises C<sub>gap</sub> as 1/d: at fixed D, α grows
-by about 1.6 from d = 0.7 to 0.4 nm at the model's D. The tip radius changes the extent of the gated region more than α under the
-apex.</li>
+<li><b>A stack without states at E<sub>F</sub> under the tip.</b> A gap at E<sub>F</sub> through all layers: a correlated gap
+of the flat band, or the gap a displacement field opens in a rhombohedral stack near neutrality (the field-induced gap
+is in the γ0/γ1 model and appears where E<sub>F</sub> is in the gap, as in the polarized stacks, where the tip's share grew
+to −22 meV at s = 0.45 for ε = 15; exchange is not in the model).</li>
+<li><b>A smaller interlayer permittivity.</b> ε = 1 instead of 2.6 lowers C<sub>int</sub> to {1e3 * eps0 / c:.0f} mF m⁻² and
+raises the cap to {cap(cg, eps0 / c):.2f}; values below the σ-band 2.6 have no physical basis.</li>
+<li><b>A closer tip.</b> d = 0.4 nm raises C<sub>gap</sub> to {1e3 * eps0 / 0.4e-9:.0f} mF m⁻² and the cap to
+{cap(eps0 / 0.4e-9, ci):.2f}. The tip radius changes the extent of the gated region more than α under the apex.</li>
 <li><b>A lever arm larger at the wall than on the (+⁵) side.</b> This is what tip gating needs: a uniform α moves the
-(+⁵) reference as well and leaves only the magnified intrinsic shift (above). The (+⁵) spectra limit α there: in
+(+⁵) reference as well and leaves only the magnified intrinsic shift (section 6). The (+⁵) spectra limit α there: in
 the fits of 940 (section 8) the lower side band at −256 mV comes out 36 to 41 mV too deep under the tip, so the
 model's tip already bends the (+⁵) surface at that bias more than the measurement shows, not less.</li>
-</ul>"""
+</ul>
+{data}"""
 
 
 def open_issues_text(states):
@@ -1640,7 +1688,8 @@ up and a filled one bends down, with V<sub>app</sub> = E<sub>FB</sub> / [e(1 −
 </table></div>
 <p>Scale: a 0.7 nm gap gives C<sub>gap</sub> = ε₀/d ≈ 13 mF m⁻². The intact flat band has C<sub>q</sub> = e²D ≈ 1.6 F m⁻²,
 so f ≈ 0.01: the band is pinned. f ≈ 0.6 needs C<sub>q</sub> ≈ 9 mF m⁻², D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻², the value
-of the (+⁴−) surface cone 10 to 20 meV from its Dirac point. Both lines give the same f with opposite bias, and in 940
+of the (+⁴−) surface cone 10 to 20 meV from its Dirac point. The estimate treats the top layer alone; the layers
+below hold its potential as well (section 9), so the same holds for them. Both lines give the same f with opposite bias, and in 940
 an edge on the stacking-fault side at positive bias rises by 50 to 90 mV next to the same wall where the flat band at
 negative bias sinks; a rigid offset of the bands, such as a polarization of the (+⁴−) stack, would move both the same
 way. The estimate leaves open whether the density of states under the tip really falls that far while the flat-band

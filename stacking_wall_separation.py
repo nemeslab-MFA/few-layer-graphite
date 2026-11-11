@@ -247,7 +247,8 @@ def plot(args):
         rows = d["rows"]
         h0 = {lab: rows[0][lab]["height"] for lab in ("tip", "free")}
         for lab, col, name in (("tip", ORANGE, "with the tip"), ("free", BLUE, "without the tip (charge redistribution)")):
-            pts = [(r["s"], r[lab]["centroid"] - rows[0][lab]["centroid"]) for r in rows if r[lab]["height"] > 0.15 * h0[lab]]
+            pts = [(r["s"], r[lab]["centroid"] - rows[0][lab]["centroid"]) for r in rows if r[lab]["height"] > 0.15 * h0[lab]
+                   and abs(r[lab]["peak"] - rows[0][lab]["peak"]) < 0.06]          # the flat band, not a feature found after it faded
             ax.plot([p[0] for p in pts], [1e3 * p[1] for p in pts], "o-", color=col, lw=2, ms=5, mec="white", mew=1.0,
                     label=name)
         wpath = os.path.join(EXAMPLES, f"stacking_wall_separation_wide_{tag}.json")
@@ -259,7 +260,7 @@ def plot(args):
                     xs = [r["s"] for r in wr[1:]]
                     ax.plot(xs, [1e3 * (r[lab]["centroid"] - wr[0][lab]["centroid"]) for r in wr[1:]], mk, ms=8,
                             mfc="none", mec=col, mew=1.6,
-                            label=f"{'with' if lab == 'tip' else 'without'} the tip, σ = {1e3 * w['settings']['sigma']:.0f} meV")
+                            label=f"{'with' if lab == 'tip' else 'without'} the tip, σ = {1e3 * w['settings']['sigma']:.1f} meV")
         meas = d["measured_wall"] - d["E_fb"]
         ax.plot([d["s_wall"]], [1e3 * meas], "*", ms=13, color=INK, label=f"measured at the wall spectrum ({1e3 * meas:+.0f} mV)")
         ax.axhline(0.0, color=GRID, lw=0.8)
@@ -267,6 +268,7 @@ def plot(args):
         ax.set_ylabel("flat-band peak − (+⁵) peak (mV)")
         ax.set_title(f"line {tag}: bend in the local approximation, σ = {1e3 * d['broadening']:.0f} meV (lines)",
                      fontsize=9.5, loc="left", color=INK)
+        ax.set_xlim(-0.03, 0.8)
         ax.legend(fontsize=7.5, frameon=False, loc="lower left" if meas < 0 else "upper left")
         for sp in ("top", "right"):
             ax.spines[sp].set_visible(False)

@@ -362,6 +362,107 @@ each tip position, and the resulting flat-band peak against the tip position.</f
 """
 
 
+def cpot_sensitivity_text(states, img_prefix=""):
+    """Subsection: how the tip-induced part of the wall bend depends on the tip work function, and why the
+    fits put the offset at zero (stacking_wall_cpot_sensitivity.py)."""
+    data = {}
+    for t in states:
+        path = os.path.join(EXAMPLES, f"stacking_wall_cpot_sensitivity_{t}.json")
+        if not os.path.exists(path):
+            return ""
+        with open(path) as fh:
+            data[t] = json.load(fh)
+        if not data[t].get("summary"):
+            return ""
+    mv = lambda v: f"{1e3 * v:+.0f}".replace("-", "−")   # noqa: E731
+    t1, t2 = list(data)[:2]
+    # evidence for CPot = 0
+    scan = {}
+    for t, st in states.items():
+        res = {float(k): v["residual"] for k, v in st.get("scan", {}).items()}
+        scan[t] = res
+    scan_txt = "; ".join(f"{t}: {res.get(0.0, float('nan')):.2f} at 0 against {res.get(-0.1, float('nan')):.2f} at −0.1 eV and "
+                         f"{res.get(0.1, float('nan')):.2f} at +0.1 eV" for t, res in scan.items())
+    eps_txt = ""
+    p = os.path.join(EXAMPLES, "stacking_wall_eps26_cpot_940.json")
+    if os.path.exists(p):
+        with open(p) as fh:
+            eps_txt = (f"; the ε = 2.6 polarized-stack fit of 940 with the offset free puts it at "
+                       f"{mv(json.load(fh)['best']['delta'])} meV")
+    a = bend_asymmetry(states)
+    asym_txt = (f"; and if one tip recorded both lines, the asymmetry of the two bends gives {mv(a['C'])} meV "
+                f"({mv(a['pos'][0])} to {mv(a['pos'][1])} meV within half a bias step)" if a else "")
+    # sensitivity
+    lines, rows_html = {}, []
+    for t, st in data.items():
+        s, rows = st["settings"], sorted(st["summary"], key=lambda r: r["delta"])
+        d = np.array([r["delta"] for r in rows])
+        tot = np.array([r["total"] for r in rows])
+        tip = np.array([r["tip"] for r in rows])
+        meas = s["measured_bend"]
+        slope = float(np.polyfit(d[np.abs(d) <= 0.1 + 1e-9], tot[np.abs(d) <= 0.1 + 1e-9], 1)[0])     # eV per eV
+        # offset that would give the measured bend: interpolate, or extrapolate from the two end points
+        need, extrap = None, False
+        for i in range(len(d) - 1):
+            if (tot[i] - meas) * (tot[i + 1] - meas) <= 0 and tot[i] != tot[i + 1]:
+                need = float(d[i] + (meas - tot[i]) * (d[i + 1] - d[i]) / (tot[i + 1] - tot[i]))
+        if need is None:
+            j = (0, 1) if abs(tot[0] - meas) < abs(tot[-1] - meas) else (-2, -1)
+            k = (tot[j[1]] - tot[j[0]]) / (d[j[1]] - d[j[0]])
+            need, extrap = (float(d[j[0]] + (meas - tot[j[0]]) / k) if k != 0 else None), True
+        z = next(r for r in rows if abs(r["delta"]) < 1e-9)
+        lines[t] = dict(s=s, slope=slope, need=need, extrap=extrap, zero=z, rows=rows, d=d, tot=tot, tip=tip, meas=meas)
+    for i, r1 in enumerate(lines[t1]["rows"]):
+        r2 = next((r for r in lines[t2]["rows"] if abs(r["delta"] - r1["delta"]) < 1e-9), None)
+        if r2 is None:
+            continue
+        cells = "".join(f"<td>{mv(r['bump_wall'])} / {mv(r['bump_far'])} meV</td><td>{mv(r['tip'])} mV</td>"
+                        f"<td>{mv(r['total'])} mV</td>" for r in (r1, r2))
+        rows_html.append(f"<tr><td>{mv(r1['delta'])} meV</td>{cells}</tr>")
+
+    def need_txt(t):
+        v = lines[t]
+        if v["need"] is None:
+            return "no offset in reach"
+        return f"{'about ' if v['extrap'] else ''}{mv(v['need'])} meV{' (extrapolated)' if v['extrap'] else ''}"
+
+    a1, a2 = lines[t1], lines[t2]
+    far_shift = {t: next((r["dc_far"] for r in v["rows"] if abs(r["delta"] + 0.2) < 1e-9), None) for t, v in lines.items()}
+    res02 = {t: (scan[t].get(-0.2), scan[t].get(0.2)) for t in scan}
+    opposite = (a1["need"] is not None and a2["need"] is not None and a1["need"] * a2["need"] < 0)
+    return f"""<h3>Sensitivity to the tip work function</h3>
+<p>The tip-induced numbers above take the tip work function equal to the sample's: CPot = 0, so the tip does not
+bend the (+⁵) bands at zero bias. That value is fitted, not assumed. The contact-potential scan of the (+⁵) spectra
+has its lowest residual at zero for both lines ({scan_txt}), which leaves CPot = 0 ± 0.05 eV{eps_txt}{asym_txt}.</p>
+<p>An offset δ of the tip work function from the sample's enters the electrostatics only through the tip potential,
+U<sub>tip</sub> = V + δ, so the tip-induced bending at bias V is that of the fitted sweeps at V + δ. The k·p wall
+model with the Gaussian bump was solved for δ from {mv(min(a1['d']))} to {mv(max(a1['d']))} meV (the bias range of the
+sweeps sets the limits), with the tip at the position of the measured wall spectrum and far on the (+⁵) side, each at
+its measured peak bias (<code>stacking_wall_cpot_sensitivity.py</code>). The tip-induced part of the bend is the
+centroid shift at the wall minus that on the (+⁵) side; added to the far-field bend of the hybrid
+({mv(a1['s']['far_field_bend'])} mV in {t1}, {mv(a2['s']['far_field_bend'])} mV in {t2}) it gives the model bend in the
+table and the figure. Near δ = 0 the bend changes by {1e2 * a1['slope']:.0f} mV ({t1}) and {1e2 * a2['slope']:.0f} mV
+({t2}) per 100 meV of offset, so the fitted ±50 meV moves it by at most {abs(50 * a1['slope']):.0f} and
+{abs(50 * a2['slope']):.0f} mV. The measured bend ({mv(a1['meas'])} and {mv(a2['meas'])} mV) would need δ =
+{need_txt(t1)} in {t1} and {need_txt(t2)} in {t2}{': offsets of opposite sign, so no single tip gives both' if opposite else ''}.
+The lines were recorded on different days, possibly with different tips, but each line's own (+⁵) fit holds its tip
+near zero: the residual at −0.2 / +0.2 eV is {res02[t1][0]:.2f} / {res02[t1][1]:.2f} in {t1} and
+{res02[t2][0]:.2f} / {res02[t2][1]:.2f} in {t2}, against {scan[t1].get(0.0):.2f} and {scan[t2].get(0.0):.2f} at zero.
+{f"An offset of −0.2 eV would also move the (+⁵) peak itself under the tip by {mv(far_shift[t1])} mV ({t1}) and {mv(far_shift[t2])} mV ({t2}) at fixed doping. " if None not in far_shift.values() else ""}A
+Pt tip at its vacuum work-function difference (+1.05 eV) would bend the 940 band up, the wrong way. The tip-induced
+share of the wall bend is small because the work functions are equal, and that equality is what the spectra give.</p>
+<div class="tablewrap"><table>
+<tr><th>δ</th><th>{t1}: top-layer bump, wall / (+⁵)</th><th>{t1}: tip part</th><th>{t1}: bend</th>
+<th>{t2}: top-layer bump, wall / (+⁵)</th><th>{t2}: tip part</th><th>{t2}: bend</th></tr>
+{''.join(rows_html)}
+</table></div>
+<figure><img src="{img_prefix}stacking_wall_cpot_sensitivity.png" alt="model bend at the wall against the tip work-function offset">
+<figcaption>Flat-band bend at the measured wall position against the offset δ of the tip work function from the
+sample's: k·p wall model with the far-field potentials of the hybrid and the tip-induced bump (blue), the far-field
+part alone (dotted) and the measurement (dashed). Grey band: the range of δ allowed by the (+⁵) fits.</figcaption></figure>
+"""
+
+
 def lateral_numbers(tag):
     """Numbers of the lateral (3D) solve: the (+4-) far field, the tip-free step against the
     columns, the apex bending at the k.p positions against the local approximation, the width
@@ -1065,6 +1166,7 @@ top-layer dI/dV of the wall stack along the fitted profile (right).</figcaption>
 </div>
 {hybrid_text(states, img_prefix)}
 {bump_text(states, img_prefix)}
+{cpot_sensitivity_text(states, img_prefix)}
 {lateral_text(states, img_prefix)}
 {epsfit_text(img_prefix)}
 {polar_series_text(img_prefix)}

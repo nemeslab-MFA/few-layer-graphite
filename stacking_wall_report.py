@@ -1227,7 +1227,8 @@ the structure factor, so it is evaluated with a complex Hamiltonian averaged ove
 <code>stacking_wall_tibb.py</code>; it reproduces the engine's end members exactly and a brute-force zone sum to
 1 %). Tip radius {s0['radius']:.0f} nm, separation {s0['separation']:.1f} nm, barrier {s0['barrier']:.1f} eV,
 {s0['temperature']:.0f} K, Gaussian width {1e3 * s0['broadening']:.0f} meV of the tight-binding occupation and LDOS (the
-γ0/γ1 flat band is 6 meV wide, the measured one 26 mV), lock-in {1e3 * s0['modulation']:.2f} mV; 90 nm SiO₂ over the
+bare γ0/γ1 flat band is 6 meV wide; with this Gaussian the simulated (+⁵) peak is 34 to 35 mV wide at half
+maximum, the measured one 42 to 45 mV), lock-in {1e3 * s0['modulation']:.2f} mV; 90 nm SiO₂ over the
 grounded Si. The doping is set from the measured flat-band energy of the (+⁵) side (the isolated stack is neutral with
 E<sub>F</sub> that far from its flat band); the fixed charge per layer this implies is used unchanged for the wall and
 the (+⁴−) stack. The tip contact potential is the value, scanned in 0.1 eV steps, at which the simulated (+⁵)
@@ -1304,63 +1305,58 @@ def _mv(v, nd=0):
 
 def abstract_text(states):
     nums, pol = status_numbers(states)
-    if len(nums) < 2:
+    sep = separation_numbers(states)
+    if len(nums) < 2 or sep is None:
         return ""
     up = next(t for t, v in nums.items() if v["E_fb"] > 0)
     dn = next(t for t, v in nums.items() if v["E_fb"] < 0)
     u, d = nums[up], nums[dn]
+    su, sd = sep[up], sep[dn]
     a = bend_asymmetry(states)
-    lev = [abs(v["lever"]) for v in nums.values() if "lever" in v]
-    tipb = all("tip_bump" in v for v in nums.values())
-    tipl = all("tip_lateral" in v for v in nums.values())
+    levs = [abs(v[k]) for v in sep.values() for k in ("lever_wall", "lever_rg") if v.get(k)]
     cp = cpot_numbers(states)
-    wf_txt = ""
-    if cp:
-        parts = []
-        for t in (up, dn):
-            v = cp[t]
-            parts.append(f"{_mv(v['need'])} meV in {t}" if v["need"] is not None else
-                         f"not in {t}, where the largest bend is {_mv(v['best'])} mV (at {_mv(v['best_delta'])} meV)")
-        wf_txt = (f"Changing the tip work function does not rescue the mechanism: between {_mv(min(cp[up]['d']))} and "
-                  f"{_mv(max(cp[up]['d']))} meV from the sample's the measured bend is reached " + " and ".join(parts) + ".")
-    tot = {t: v["swmcc"] + v["tip_bump_net"] for t, v in nums.items() if "swmcc" in v and "tip_bump_net" in v}
-    levf = [abs(v["lever_far"]) for v in nums.values() if "lever_far" in v]
-    net = all("tip_bump_net" in v for v in nums.values())
     p1 = f"""<p>Across the (+⁴−)|(+⁵) wall of six-layer rhombohedral graphite the flat-band peak bends away from
 E<sub>F</sub> as it fades: up by {_mv(u['meas'])} mV in line {up}, where the band is empty, and down by
 {_mv(d['meas'])} mV in line {dn}, where it is filled, at the position of the wall spectrum (s = {u['s']:.2f} of the fitted
-profile). The measurement looks like tip gating: per volt of bias the two bends are the same, a lever arm of
-{a['alpha']:.2f} for both lines with one contact potential of {_mv(a['C'])} meV, and in {dn} an edge seen at positive bias
+profile). The measurement looks like tip gating: per volt of bias the two bends are the same (a lever arm of
+{a['alpha']:.2f} for both lines with one contact potential of {_mv(a['C'])} meV), and in {dn} an edge seen at positive bias
 on the stacking-fault side rises by 50 to 90 mV next to the same wall where the flat band, seen at negative bias,
-sinks. A capacitor estimate reproduces both bends if the density of states at E<sub>F</sub> under the tip falls to
-about 5 × 10¹² eV⁻¹ cm⁻² at the wall, the level of the (+⁴−) surface, while the (+⁵) side stays pinned.</p>""" if a else ""
-    p2 = f"""<p>The self-consistent model does not reproduce that mechanism. With the tip work function fitted to the (+⁵)
-spectra, equal to the sample's within 0.05 eV, the top layer under the tip at the wall keeps about a quarter of its
-flat-band states (4 × 10¹³ eV⁻¹ cm⁻² at E<sub>F</sub>) and screens the tip: the tip-induced bending of the top layer at
-the bias of the wall peak is {100 * min(lev):.0f} to {100 * max(lev):.0f} % of that bias, against the
-{100 * a['alpha']:.0f} %{f" the estimate needs, and no larger than on the (+⁵) side ({100 * min(levf):.0f} to {100 * max(levf):.0f} % at its bias)" if levf else " the estimate needs"}.
-Carried into the SWMcC wall model, the tip's potential shifts the peak at the wall by {_mv(u.get('tip_bump'), 1)} mV ({up}) and
-{_mv(d.get('tip_bump'), 1)} mV ({dn}), but it shifts the (+⁵) reference as well, by {_mv(u.get('dcf'), 1)} and {_mv(d.get('dcf'), 1)} mV,
-where the flat band is a pure top-layer state; its net contribution to the bend is {_mv(u.get('tip_bump_net'), 1)} and
-{_mv(d.get('tip_bump_net'), 1)} mV{f" ({_mv(u.get('tip_lateral_net'), 1)} and {_mv(d.get('tip_lateral_net'), 1)} mV with the potential of the three-dimensional solution)" if tipl and net else ""}.
-{wf_txt}</p>""" if lev and net else ""
-    p3 = f"""<p>What the model gives is a tip-free shift from the charge balance of the wall stack: with the doping carried as
-a fixed charge per layer, a top layer that has lost most of its flat-band states moves its bands to hold that charge.
-In the local approximation (uniform stacks along the fitted profile, tip included) the flat band bends by
-{_mv(u['local'])} mV ({up}) and {_mv(d['local'])} mV ({dn}). The SWMcC wall model with the self-consistent on-site
-energies of the stacks gives {_mv(u['swmcc'])} and {_mv(d['swmcc'])} mV, and {_mv(tot[up])} and {_mv(tot[dn])} mV with the
-tip's own field: {100 * tot[up] / u['meas']:.0f} % and {100 * tot[dn] / d['meas']:.0f} % of the measured bends, with
-the right signs and the fringes of the (+⁴−) side{", but the larger bend in the wrong line" if abs(tot[up]) > abs(tot[dn]) else ""}. The shift depends on the
-doping model: with the doping compensated by charge in the SiO₂, the polarized stack that fits the (+⁵) spectrum of
-{dn} best at the interlayer permittivity of graphite (ε = 2.6), the wall's charge rearrangement becomes a dipole inside
-the stack and the bend falls to {_mv(pol.get('_eps26_fb'), 1)} mV. No model run produces the rising edge on the (+⁴−)
-side.</p>""" if all(k in u and k in d for k in ("local", "swmcc")) and len(tot) == 2 else ""
-    p4 = """<p>The status is therefore a measurement that looks like tip gating and a model that screens the tip too well
-to produce it. The model's largest known deficit points that way: its flat band is 6 meV wide in the γ0/γ1 bands
-(10 meV with the broadening used) against 26 mV measured, so it overstates the density of states at E<sub>F</sub> and
-with it the screening of the tip. The next model step is the band width (γ3, γ4 and Δ′ in the self-consistent stacks);
-the measurement that separates the two mechanisms is the bend against the tip height and the tip work function at
-the same wall, which change a tip-gating bend and leave a charge-balance bend alone.</p>"""
+sinks. A capacitor estimate gives both bends if the density of states at E<sub>F</sub> under the tip falls to about
+5 × 10¹² eV⁻¹ cm⁻² at the wall while the (+⁵) side stays pinned.</p>"""
+    p2 = f"""<p>The self-consistent model (Poisson equation with γ0/γ1 tight-binding stacks, tip work function fitted to the
+(+⁵) spectra, equal to the sample's within 0.05 eV) bends the flat band the measured way, but not by tip gating.
+Computed from the same self-consistent stacks with and without the tip, the bend at the wall spectrum is
+{_mv(su['wall']['tip'])} and {_mv(sd['wall']['tip'])} mV with the tip and {_mv(su['wall']['free'])} and
+{_mv(sd['wall']['free'])} mV without it: it is charge redistribution in the wall stack, which has lost most of its
+top-layer flat-band states and must move its bands to hold the same charge. The tip shifts the peaks
+({_mv(su['ref_shift'], 1)} and {_mv(sd['ref_shift'], 1)} mV on the (+⁵) stack), but by about as much at the wall as on the
+(+⁵) side, since its lever arm on the top layer is {min(levs):.2f} to {max(levs):.2f} on both; the bend keeps
+{_mv(su['wall']['tip'] - su['wall']['free'], 1)} and {_mv(sd['wall']['tip'] - sd['wall']['free'], 1)} mV of it. The SWMcC wall
+model with the self-consistent on-site energies gives the same picture ({_mv(u['swmcc'])} and {_mv(d['swmcc'])} mV, the
+tip adding {_mv(u.get('tip_bump_net'), 1)} and {_mv(d.get('tip_bump_net'), 1)} mV), with the fringes of the (+⁴−) side.
+{(f"In the SWMcC model with the tip-induced potential no tip work function within {_mv(min(cp[up]["d"]))} to {_mv(max(cp[up]["d"]))} meV of the sample's reaches the measured bend (the largest bends are {_mv(cp[up]['best'])} and {_mv(cp[dn]['best'])} mV).") if cp else ""}</p>"""
+    wide_txt = ""
+    if "wide" in su and "wide" in sd:
+        wu, wd = su["wide"], sd["wide"]
+        ru = next((r for r in wu["rows"] if abs(r["s"] - su["wall"]["s"]) < 1e-6), None)
+        rd = next((r for r in wd["rows"] if abs(r["s"] - sd["wall"]["s"]) < 1e-6), None)
+        if ru and rd:
+            wide_txt = (f" Widening the Gaussian of the occupation and the LDOS from 10 meV to {1e3 * wu['sigma']:.1f} and "
+                        f"{1e3 * wd['sigma']:.1f} meV, which gives the measured flat-band width (42 to 45 mV against 34 to 35 mV), "
+                        f"raises the lever arm at the wall to {abs(wu['lever_wall']):.2f} and {abs(wd['lever_wall']):.2f} and "
+                        f"gives bends of {_mv(ru['tip'])} and {_mv(rd['tip'])} mV with the tip, {_mv(ru['free'])} and "
+                        f"{_mv(rd['free'])} mV without it.")
+    p3 = f"""<p>A bend from charge redistribution belongs to the sample: its sign follows the filling of the flat band, so it
+appears in both directions whatever the tip, which answers why the tip and sample work functions would otherwise have
+to agree within about 25 meV. In size it reaches {100 * su['wall']['tip'] / u['meas']:.0f} % ({up}) and
+{100 * sd['wall']['tip'] / d['meas']:.0f} % ({dn}) of the measured bend, and it depends on the doping model: with the doping
+compensated by charge in the SiO₂ (the polarized stack that fits the (+⁵) spectrum of {dn} best at ε = 2.6) the
+wall's charge rearrangement becomes a dipole inside the stack and the bend falls to {_mv(pol.get('_eps26_fb'), 1)} mV.
+No model run produces the rising edge on the (+⁴−) side.{wide_txt}</p>"""
+    p4 = """<p>The status: charge redistribution gives the sign and about half the size of the bend; the rest, and the
+rising (+⁴−) edge, need a tip lever arm several times larger at the wall than on the (+⁵) side, which the model does
+not produce (section 9 lists how it could arise). The measurement that separates the two is the bend against the tip
+height at one wall: a tip-gating bend scales with the gap capacitance, a charge-redistribution bend does not.</p>"""
     return p1 + p2 + p3 + p4
 
 
@@ -1368,6 +1364,16 @@ def status_table(states):
     nums, pol = status_numbers(states)
     if len(nums) < 2:
         return ""
+    sep = separation_numbers(states)
+    if sep:
+        for t, v in sep.items():
+            nums[t]["sep_tip"], nums[t]["sep_free"] = v["wall"]["tip"], v["wall"]["free"]
+            nums[t]["lever"] = v["lever_wall"]
+            nums[t]["lever_far"] = v["lever_rg"]
+            if "wide" in v:
+                r = next((q for q in v["wide"]["rows"] if abs(q["s"] - v["wall"]["s"]) < 1e-6), None)
+                if r:
+                    nums[t]["wide_tip"], nums[t]["wide_free"], nums[t]["wide_sigma"] = r["tip"], r["free"], v["wide"]["sigma"]
     t1, t2 = list(nums)[:2]
     a, b = nums[t1], nums[t2]
     al = bend_asymmetry(states)
@@ -1380,9 +1386,14 @@ def status_table(states):
     rows = [
         row("flat-band peak (+⁵) / at the wall spectrum, measured", lambda v: f"{_mv(v['E_fb'])} / {_mv(v['V_wall'])} mV"),
         row("<b>measured bend</b>", lambda v: f"<b>{_mv(v['meas'])} mV</b>", f"at s = {a['s']:.2f} of the fitted profile"),
-        row("lever arm of the tip on the top layer: needed / model", lambda v: f"{al['alpha']:.2f} / {abs(v.get('lever', float('nan'))):.2f}"
-            if al else "–", "needed: one lever arm and one contact potential for both lines; model: top-layer bump at the wall-peak bias over that bias"),
-        row("local approximation (uniform stacks, tip included)", lambda v: pct(v, "local"), "bend against its own (+⁵) peak"),
+        row("lever arm of the tip on the top layer at the wall: needed / model", lambda v: f"{al['alpha']:.2f} / {abs(v.get('lever', float('nan'))):.2f}"
+            if al else "–", "needed: one lever arm and one contact potential for both lines; model: top-layer bending at the wall-peak bias over that bias"),
+        row("local approximation with the tip / without the tip", lambda v: (f"{_mv(v['sep_tip'], 1)} / {_mv(v['sep_free'], 1)} mV "
+            f"({100 * v['sep_tip'] / v['meas']:.0f} / {100 * v['sep_free'] / v['meas']:.0f} %)") if v.get("sep_tip") is not None else pct(v, "local"),
+            "same self-consistent stacks; centroids against the own (+⁵) peak"),
+        row("local approximation, flat band as wide as measured: with / without the tip", lambda v: (f"{_mv(v['wide_tip'], 1)} / {_mv(v['wide_free'], 1)} mV "
+            f"(σ = {1e3 * v['wide_sigma']:.1f} meV)") if v.get("wide_tip") is not None else "running",
+            "σ = 10 meV above"),
         row("SWMcC wall + self-consistent on-site energies (no tip)", lambda v: pct(v, "swmcc"), "far-field charge balance"),
         row("lever arm of the tip on the top layer far on the (+⁵) side, at its bias", lambda v: f"{abs(v.get('lever_far', float('nan'))):.2f}"),
         row("tip-induced shift of the peak at the wall / of the (+⁵) peak", lambda v: f"{_mv(v.get('tip_bump'), 1)} / {_mv(v.get('dcf'), 1)} mV",
@@ -1428,12 +1439,171 @@ in the solve, while the structure near −215 mV survives (at −222 mV). The me
 maximum as well: the negative-bias spectrum is shaped by the tip's field.</p>"""
 
 
+def separation_numbers(states):
+    """With and without the tip, per line: bends at every s (centroids against the own (+5) peak), the tip's shift
+    of the (+5) reference, the lever arm at the wall, and the same at the wider Gaussian; None if not computed."""
+    path = os.path.join(EXAMPLES, "stacking_wall_separation.json")
+    if not os.path.exists(path):
+        return None
+    with open(path) as fh:
+        data = json.load(fh)
+    sep = data.get("separation", {})
+    if not all(t in sep for t in states):
+        return None
+    out = {}
+    for t, st in states.items():
+        d = sep[t]
+        rows = d["rows"]
+        r0 = rows[0]
+        h0 = {k: r0[k]["height"] for k in ("tip", "free")}
+        tab = []
+        for r in rows:
+            alive = all(r[k]["height"] > 0.15 * h0[k] for k in ("tip", "free"))
+            tab.append(dict(s=r["s"], alive=alive, tip=r["tip"]["centroid"] - r0["tip"]["centroid"],
+                            free=r["free"]["centroid"] - r0["free"]["centroid"]))
+        sw_ = min(tab, key=lambda q: abs(q["s"] - d["s_wall"]))
+        s = st["settings"]
+        Vw = d["measured_wall"]
+        def lever(sweep, V):
+            Vb, U0, Uf = np.asarray(sweep["bias"]), np.asarray(sweep["U0"]), np.asarray(sweep["U_far"])
+            return float(np.interp(V, Vb, U0[:, 0] - Uf[:, 0])) / V
+        wall_rec = st["runs"].get(f"wall_s{d['s_wall']:.2f}")
+        rg_rec = st["scan"][f"{st['best_cpot']:+.3f}"]
+        o = dict(tab=tab, wall=sw_, ref_shift=r0["tip"]["centroid"] - r0["free"]["centroid"], meas=Vw - d["E_fb"],
+                 sigma=d["broadening"], lever_wall=lever(wall_rec["sweep"], Vw) if wall_rec else None,
+                 lever_rg=lever(rg_rec["sweep"], d["E_fb"]), cal=data.get("calibration", {}).get(t))
+        wp = os.path.join(EXAMPLES, f"stacking_wall_separation_wide_{t}.json")
+        if os.path.exists(wp):
+            with open(wp) as fh:
+                w = json.load(fh)
+            if w.get("rows"):
+                wr = w["rows"]
+                w0 = wr[0]
+                o["wide"] = dict(sigma=w["settings"]["sigma"], fwhm=w.get("fwhm_rg"),
+                                 rows=[dict(s=r["s"], tip=r["tip"]["centroid"] - w0["tip"]["centroid"],
+                                            free=r["free"]["centroid"] - w0["free"]["centroid"],
+                                            h_tip=r["tip"]["height"] / w0["tip"]["height"]) for r in wr[1:]],
+                                 ref_shift=w0["tip"]["centroid"] - w0["free"]["centroid"],
+                                 lever_wall=lever(w["runs"][f"{d['s_wall']:.2f}"]["sweep"], Vw) if f"{d['s_wall']:.2f}" in w["runs"] else None,
+                                 lever_rg=lever(w["runs"]["0.00"]["sweep"], d["E_fb"]))
+        out[t] = o
+    return out
+
+
+def separation_text(states, img_prefix=""):
+    nums = separation_numbers(states)
+    if nums is None:
+        return ""
+    t1, t2 = list(nums)[:2]
+    a, b = nums[t1], nums[t2]
+    mv = lambda v, nd=0: _mv(v, nd)   # noqa: E731
+    rows = []
+    for t, v in nums.items():
+        for q in v["tab"]:
+            if not q["alive"]:
+                rows.append(f"<tr><td>{t}</td><td>{q['s']:.2f}</td><td colspan=\"3\">flat-band peak faded</td></tr>")
+                continue
+            rows.append(f"<tr><td>{t}</td><td>{q['s']:.2f}</td><td>{mv(q['tip'], 1)} mV</td><td>{mv(q['free'], 1)} mV</td>"
+                        f"<td>{mv(q['tip'] - q['free'], 1)} mV</td></tr>")
+    wide_txt = ""
+    if "wide" in a and "wide" in b:
+        wa, wb = a["wide"], b["wide"]
+        def at(w, sv):
+            return next((r for r in w["rows"] if abs(r["s"] - sv) < 1e-6), None)
+        ra, rb = at(wa, a["wall"]["s"]), at(wb, b["wall"]["s"])
+        wrows = []
+        for t, v in nums.items():
+            for r in v["wide"]["rows"]:
+                wrows.append(f"<tr><td>{t}</td><td>{1e3 * v['wide']['sigma']:.1f} meV</td><td>{r['s']:.2f}</td>"
+                             f"<td>{mv(r['tip'], 1)} mV</td><td>{mv(r['free'], 1)} mV</td><td>{mv(r['tip'] - r['free'], 1)} mV</td>"
+                             f"<td>{100 * r['h_tip']:.0f} %</td></tr>")
+        if ra and rb:
+            wide_txt = f"""<p><b>A flat band as wide as the measured one.</b> With the Gaussian of 10 meV used so far the
+simulated (+⁵) peak is {1e3 * a['cal']['rows'][0]['fwhm']:.0f} and {1e3 * b['cal']['rows'][0]['fwhm']:.0f} mV wide at half
+maximum, the measured one {1e3 * a['cal']['measured_fwhm']:.0f} ({t1}) and {1e3 * b['cal']['measured_fwhm']:.0f} mV ({t2}).
+σ = {1e3 * wa['sigma']:.1f} and {1e3 * wb['sigma']:.1f} meV reproduce the measured widths
+(<code>stacking_wall_separation.py calibrate</code>), and the (+⁵) stack and the wall stacks were solved again with
+that σ in the occupation as well as in the spectrum, so that the screening sees the wider band (contact potential 0,
+biases ±0.2 V in 25 mV steps; <code>stacking_wall_separation.py wide</code>). The lever arm of the tip on the top
+layer at the wall goes from {abs(a['lever_wall']):.2f} to {abs(wa['lever_wall']):.2f} ({t1}) and from
+{abs(b['lever_wall']):.2f} to {abs(wb['lever_wall']):.2f} ({t2}); on the (+⁵) side, at its own bias, from
+{abs(a['lever_rg']):.2f} to {abs(wa['lever_rg']):.2f} and from {abs(b['lever_rg']):.2f} to {abs(wb['lever_rg']):.2f}.
+At s = {a['wall']['s']:.2f} the flat band bends by {mv(ra['tip'])} mV with the tip and {mv(ra['free'])} mV without it in
+{t1} (σ = 10 meV: {mv(a['wall']['tip'])} and {mv(a['wall']['free'])} mV), {mv(rb['tip'])} and {mv(rb['free'])} mV in {t2}
+({mv(b['wall']['tip'])} and {mv(b['wall']['free'])} mV); measured {mv(a['meas'])} and {mv(b['meas'])} mV.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>σ</th><th>s</th><th>bend with the tip</th><th>without the tip</th><th>tip-induced part</th><th>peak height (of (+⁵))</th></tr>
+{''.join(wrows)}
+</table></div>"""
+    return f"""<p>Every stack of the local approximation was evaluated twice from the same self-consistent sweep: with
+the layer potentials under the apex, U0(V), as in the maps, and with the far-field potentials U<sub>far</sub> of the
+same stack at every bias, which contain the charge redistribution of the stack but no tip
+(<code>stacking_wall_separation.py</code>). The bend is the shift of the flat-band peak (its centroid) from that of the
+(+⁵) stack under the same conditions. At the position of the wall spectrum (s = {a['wall']['s']:.2f}) the bend is
+{mv(a['wall']['tip'])} mV with the tip and {mv(a['wall']['free'])} mV without it in {t1}, {mv(b['wall']['tip'])} and
+{mv(b['wall']['free'])} mV in {t2} (measured {mv(a['meas'])} and {mv(b['meas'])} mV): the bend of the model is charge
+redistribution, and the tip changes it by {mv(a['wall']['tip'] - a['wall']['free'], 1)} and
+{mv(b['wall']['tip'] - b['wall']['free'], 1)} mV. The tip does move the peaks, by {mv(a['ref_shift'], 1)} and
+{mv(b['ref_shift'], 1)} mV on the (+⁵) stack at its bias, but by about as much at the wall, so the bend, a difference,
+keeps little of it. The lever arm of the tip on the top layer is {abs(a['lever_rg']):.2f} and {abs(b['lever_rg']):.2f}
+on the (+⁵) stack at its bias and {abs(a['lever_wall']):.2f} and {abs(b['lever_wall']):.2f} at the wall at the
+wall-peak bias.</p>
+<div class="tablewrap"><table>
+<tr><th>line</th><th>s</th><th>bend with the tip</th><th>without the tip</th><th>tip-induced part</th></tr>
+{''.join(rows)}
+</table></div>
+{wide_txt}
+<figure><img src="{img_prefix}stacking_wall_separation.png" alt="bend with and without the tip against s">
+<figcaption>Flat-band peak against that of the (+⁵) stack for the stacks of the local approximation, with the tip
+(orange) and without it (blue), σ = 10 meV (lines) and the σ that matches the measured width (open markers); star:
+the measured bend at the wall spectrum.</figcaption></figure>
+<p><b>Why the bend needs no tuned work function in this picture.</b> A bend from charge redistribution belongs to
+the sample: its sign follows the filling of the flat band, up where the band is empty and down where it is filled,
+whatever the tip. Pure tip gating with a lever arm confined to the wall gives a bend whose sign is that of the bias
+measured from the zero-TIBB bias, −CPot; seeing an upward bend at +23 mV and a downward one at −32 mV then requires
+|CPot| below about 25 meV. Even when the tip does gate, with the same lever arm α at the wall and on the (+⁵) side,
+the apparent energies are V = (E + α CPot)/(1 − α), and the bend, V<sub>wall</sub> − V<sub>(+⁵)</sub> =
+(E<sub>wall</sub> − E<sub>(+⁵)</sub>)/(1 − α), no longer contains CPot: a uniform lever arm only magnifies the intrinsic
+shift. The contact potential matters only through a lever arm that differs between the wall and the (+⁵) side, and
+that is the situation the self-consistent model does not produce.</p>"""
+
+
+def lever_arm_text(states):
+    nums = separation_numbers(states)
+    lev = ""
+    if nums:
+        vals = [abs(v["lever_wall"]) for v in nums.values() if v.get("lever_wall")] + [abs(v["lever_rg"]) for v in nums.values()]
+        lev = f" The self-consistent model gives {min(vals):.2f} to {max(vals):.2f} on both sides of the wall."
+    return f"""<p>The top layer under the apex is a capacitor divider: the tip couples to it through the vacuum gap,
+C<sub>gap</sub> ≈ ε₀/d ≈ 13 mF m⁻² at d = 0.7 nm, and its potential is held by its own quantum capacitance
+e²D(E<sub>F</sub>) and by the layers below. The lever arm is roughly α ≈ C<sub>gap</sub>/(C<sub>gap</sub> +
+e²D(E<sub>F</sub>) + C<sub>below</sub>), with e²D ≈ 16 mF m⁻² per 10¹³ eV⁻¹ cm⁻². The measured bends need α ≈ 0.6 at
+the wall: e²D + C<sub>below</sub> ≈ 9 mF m⁻², D(E<sub>F</sub>) ≈ 5 × 10¹² eV⁻¹ cm⁻².{lev} Ways it could be larger:</p>
+<ul>
+<li><b>Fewer states at E<sub>F</sub> under the tip.</b> A wider flat band (tested above at the measured width), a gap at
+E<sub>F</sub> (a correlated gap of the flat band, or the gap the displacement field opens in rhombohedral stacks; the
+field-induced gap is in the γ0/γ1 model, exchange is not), or a top flat band that the tip has completely filled or
+emptied under the apex, which makes the lever arm grow with |V|.</li>
+<li><b>Weaker screening from below.</b> C<sub>below</sub> is the series of the interlayer capacitances and the
+quantum capacitances of the lower layers; a smaller interlayer permittivity or lower layers with fewer states at
+E<sub>F</sub> (E<sub>F</sub> in a gap of the stack, as in the polarized stacks, where the tip's share grew to −22 meV at
+s = 0.45 for ε = 15) let more of the tip's field into the top layer.</li>
+<li><b>A larger gap capacitance.</b> A smaller tip-sample distance raises C<sub>gap</sub> as 1/d: at fixed D, α grows
+by about 1.6 from d = 0.7 to 0.4 nm at the model's D. The tip radius changes the extent of the gated region more than α under the
+apex.</li>
+<li><b>A lever arm larger at the wall than on the (+⁵) side.</b> This is what tip gating needs: a uniform α moves the
+(+⁵) reference as well and leaves only the magnified intrinsic shift (above). The (+⁵) spectra limit α there: in
+the fits of 940 (section 8) the lower side band at −256 mV comes out 36 to 41 mV too deep under the tip, so the
+model's tip already bends the (+⁵) surface at that bias more than the measurement shows, not less.</li>
+</ul>"""
+
+
 def open_issues_text(states):
     return """<ul>
-<li><b>Width of the flat band.</b> 6 meV in the γ0/γ1 stacks of the Poisson solver (10 meV with the broadening used)
-against 26 mV measured. A too narrow band overstates D(E<sub>F</sub>) and the screening of the tip, and it is the one
-model error that would suppress tip gating. The bandbending plan's next phase (P5: γ3, γ4, Δ′ in the self-consistent
-stacks) addresses it.</li>
+<li><b>Width of the flat band.</b> The bare γ0/γ1 flat band is 6 meV wide; a Gaussian of 10 meV in the occupation and
+the LDOS gives a simulated (+⁵) peak of 34 to 35 mV against 42 to 45 mV measured. Section 6 widens the Gaussian to the
+measured width. A Gaussian keeps the band's weight and centre; γ3, γ4 and Δ′ (the bandbending plan's phase P5) would
+also reshape the band and move weight between layers.</li>
 <li><b>Doping model.</b> The charge-balance shift exists with a fixed charge per layer (uniform doping) and nearly
 vanishes with the doping compensated in the SiO₂ (polarized stack), which fits the (+⁵) spectrum of 940 better at
 ε = 2.6. The per-layer charge also puts the (+⁴−) Fermi level 30 to 40 meV from its neutrality point, where the
@@ -1523,18 +1693,22 @@ def page(tags, img_prefix=""):
 {tibb_text(states, img_prefix)}
 <h2>5. The SWMcC wall model with the self-consistent on-site energies</h2>
 {hybrid_text(states, img_prefix)}
-<h2>6. The tip's own field</h2>
+<h2>6. Charge redistribution and tip-induced bending separated</h2>
+{separation_text(states, img_prefix)}
+<h2>7. The tip's own field in the SWMcC model</h2>
 {bump_text(states, img_prefix)}
 {cpot_sensitivity_text(states, img_prefix)}
 {lateral_text(states, img_prefix)}
-<h2>7. The doping model of 940</h2>
+<h2>8. The doping model of 940</h2>
 {epsfit_text(img_prefix)}
 {polar_series_text(img_prefix)}
 {eps26_fit_text(img_prefix)}
 {eps26_series_text(img_prefix)}
 {eps26_peaks_series_text(img_prefix)}
 {doping_extra_text(img_prefix)}
-<h2>8. Open issues</h2>
+<h2>9. How could the lever arm be larger?</h2>
+{lever_arm_text(states)}
+<h2>10. Open issues</h2>
 {open_issues_text(states)}"""
 
     return f"""<title>Stacking Wall LDOS</title>

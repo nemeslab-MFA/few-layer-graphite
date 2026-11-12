@@ -60,6 +60,14 @@ H = mlg.hamiltonian(kx, ky, stacking_type='ABCA')     # (…, 2N, 2N) for array 
 H_kp = mlg.kp_hamiltonian(px, py, stacking_type='ABCA', xi=+1)
 ```
 
+Stacking names: `'rhombohedral'` and `'bernal'` are periodic patterns of N
+layers (`N` argument, else `N_layers`).  `'abc'` and `'aba'` are the same
+patterns when a layer count comes with them, i.e. the argument `N` or the
+module configuration `set_parameters(N_layers=…, stacking=…)`; passed as
+`stacking_type` without `N` they are the trilayers themselves.  Any other string
+is an explicit sequence.  So `hamiltonian(kx, ky, stacking_type='ABA')` is
+always the Bernal trilayer, and `hamiltonian(kx, ky, 8, 'aba')` eight layers.
+
 Paths: `'gkm'` (Γ→K→M, default), `'gkg'`, `'px'`, `'py'`; K is always at
 coordinate 0.  `plot_panel_comparison(range(1, 9))` draws several layer numbers
 side by side, `plot_band_density(b)` maps one band around K.
@@ -70,7 +78,11 @@ side by side, `plot_band_density(b)` maps one band around K.
 (triangle) method on a square k-mesh around K (`region='valley'`, spacing `dk`,
 valley degeneracy 2 applied) or over the full Brillouin zone (`region='bz'`).
 Results are returned per unit cell, per Å² and per cm² (spin degeneracy 2
-included).  `model='kp'` evaluates the paper's continuum Hamiltonian instead of
+included).  For the lattice model the valley window must not overlap the one
+around K′
+(half-width below π/(√3 a) = 0.74 Å⁻¹, |E| up to about 3.9 eV); wider ranges
+raise an error and need `region='bz'`.
+`model='kp'` evaluates the paper's continuum Hamiltonian instead of
 the lattice one.  `plot_dos(..., csv_path=...)` / `load_dos_from_csv` store and
 reload curves.  Only p_y ≥ 0 is diagonalised (E(p_x, −p_y) = E(p_x, p_y) for
 every stack) and the Hamiltonians are built in pieces of at most 256 MB, so
@@ -90,13 +102,19 @@ live in `tests/data/`.  With the paper's parameters:
 - the absolute DOS of the k·p model is within 1–3 % (electrons) and 6–9 %
   (holes) of Fig. 1 and within 1–6 % of the trilayer and pentalayer curves of
   Fig. 7; the lattice model is a further 2 % higher because its band velocity
-  decreases slightly away from K.  The hole-side excess of Fig. 1 is absent in
-  Fig. 7, whose curves show the stronger electron–hole asymmetry, so the residual
-  reflects the numerics of the published figures rather than the parameters;
+  decreases slightly away from K;
+- the hole-side excess over Fig. 1 is the electron–hole asymmetry of γ4, which
+  the Fig. 1 curves lack.  Their hole/electron DOS ratio at ±0.5 eV (1.07, 1.08,
+  1.05 for ABAB, ABCA, ABCB) is that of the model with γ4 = 0 (1.06, 1.08, 1.05),
+  while the printed v4 gives 1.14, 1.14, 1.13.  Fig. 7 does contain the
+  asymmetry (1.13–1.18 against 1.12–1.15 for the model).  The Fig. 1 curves were
+  therefore computed without γ4, or with γ4 of the opposite chirality, which has
+  the same effect on the DOS; with γ4 = 0 the residual is a uniform +4–5 % on
+  both sides.  The model keeps the printed v4, which follows from the geometry;
 - the ABA trilayer panel of Fig. 7 is drawn on a 10¹³ scale and lies a factor
   of two below the model and below every other panel.
 
-## Bulk graphite and the ERS background
+## Bulk graphite
 
 `bulk_graphite.py` is the infinite-stack limit of the same model: hexagonal
 (Bernal, AB), rhombohedral (ABC) or any periodic polytype, with the layer
@@ -119,62 +137,14 @@ The DOS is integrated slice by slice in k_z with the triangle method; mesh cells
 near the Fermi level are subdivided, and the Fermi level follows from charge
 neutrality.
 
-`python graphite_ers_background.py --raman-min 80 --raman-max 6200` compares the
-two polytypes as an estimate of their electronic Raman scattering (ERS)
-continuum.  The ERS of graphitic systems consists of interband excitations
-between mirror bands, so the signal at Raman shift ω follows the DOS at
-E_F ± ħω/2 (Ponosov et al., PRB 91, 195435 (2015); García-Ruiz et al., Nano
-Lett. 19, 6152 (2019)).  The script writes `examples/graphite_ers_dos_comparison.png`
-(both DOS curves), `examples/graphite_ers_dos_raman_window.png` (the energies
-reached by the spectrometer shaded), the table `examples/graphite_ers_dos.csv`
-and the page `examples/graphite_ers_dos_report.html`; `--from-csv` redraws them
-for another Raman range without recomputing.  `--slabs 20 50 100` (the default)
-adds the DOS of finite slabs of both stackings from `multilayer_graphene.py`,
-in `examples/graphite_ers_dos_slabs.png` and `_slabs.csv` and as the last
-section of the report; the slabs are diagonalised in parallel processes with
-one BLAS thread each.
-
-A Raman shift is the difference between an electron and a hole energy, so the
-last two sections of the report work on that difference itself.
-`mirror_pair_spectrum` is the joint density of states of the mirror pairs
-n⁻ → n⁺ of a slab (Eq. 5 of García-Ruiz et al. with the σ_z matrix element of a
-mirror pair set to 1, occupation of T = 0).  It is set against ERS spectra
-calculated for whole films, read from `examples/ers_calculations/*.dat`
-(`--ers-spectra`), in `examples/graphite_ers_dos_ers_calculation.png`, and drawn
-for the thicker slabs and the bulk in `examples/graphite_ers_dos_raman_axis.png`,
-as computed and broadened to the measured ERS line width (`--linewidth`, 500 cm⁻¹
-at half maximum on the Raman-shift axis); the spectra are kept in `_pairs.csv`.
-The bulk spectrum is `bulk_graphite.calculate_bulk_pair_spectrum`, the same
-integral over the three-dimensional zone with the pairs taken at equal k_z.  In
-hexagonal slabs counting bands from the middle of the spectrum does not find
-the mirror partner near the Fermi level, where the bilayer-like subbands
-overlap, so their spectra below 60 meV are the sum over all pairs of bands
-weighted by |⟨c|σ_z|v⟩|² (`sigma_z_pair_spectrum`).
-The mathematics of the report is written in LaTeX and typeset by MathJax, which
-the page loads from a CDN; `--page-only PATH` also writes the page without its
-document skeleton, for a publisher that adds its own.  With the default parameters:
+With the default parameters, `n_kz=240`, `dk=2e-3` and `refine=8` (AB) or
+`refine=32` (ABC):
 
 - hexagonal graphite has 2.0×10¹⁸ cm⁻³ carriers of each sign and a Fermi-level
-  DOS of 4.9×10⁻³ states eV⁻¹ atom⁻¹; rhombohedral graphite has the linear DOS
-  of graphene, with a band overlap of 2.7 meV and 1.2×10¹⁵ cm⁻³ carriers;
-- the rhombohedral DOS is 0.04 of the hexagonal one at 80 cm⁻¹
-  (|E − E_F| = 5 meV), 0.40 at 1000 cm⁻¹ and 0.81 at 3000 cm⁻¹; the curves
-  cross at 5020 cm⁻¹ and the rhombohedral DOS is 5 % larger at 6200 cm⁻¹;
-- hexagonal slabs of 20, 50 and 100 layers stay within 3.5 %, 1.3 % and 0.7 %
-  of the bulk DOS between 30 and 384 meV from E_F; rhombohedral slabs split the
-  bulk continuum into subbands whose −n and +n peaks are 4γ1 sin[(n + ½)π/(2N + 1)]
-  apart (first ERS peak at 1443, 587 and 295 cm⁻¹), and their surface band pins
-  E_F about 20 meV below the bulk Dirac energy;
-- the ERS spectrum calculated for a 15-layer rhombohedral film is reproduced by
-  the mirror-pair spectrum to 1.1 % with one scale factor, with all six peaks on
-  the same 3 meV bin; the peaks follow 2γ1 sin[(n + ½)π/(N + ½)];
-- broadened to 500 cm⁻¹ the strongest subband peak stands 16 % above the minimum
-  after it for 15 layers and 6 % for 20 layers, and no peak is left at 50 and
-  100 layers; the hexagonal spectra have no peak at any thickness;
-- the bulk pair spectrum of rhombohedral graphite equals D(E_F ± ħω/2)/2 to
-  0.3 %; for hexagonal graphite the DOS rule is 1.3 % too high above 500 cm⁻¹
-  and misses the fall of the spectrum below about 250 cm⁻¹, where the pockets
-  of the semimetal block the pairs (2.8 times too high at 80 cm⁻¹, T = 0).
+  DOS of 4.9×10⁻³ states eV⁻¹ atom⁻¹;
+- rhombohedral graphite has the linear DOS of graphene; the Dirac energy varies
+  with k_z by (4γ4/γ0)(γ1γ3/γ0 + γ2/2) = 2.7 meV, which is its band overlap,
+  and it has 1.2×10¹⁵ cm⁻³ carriers.
 
 ## Tests
 
@@ -182,19 +152,16 @@ document skeleton, for a publisher that adds its own.  With the default paramete
 python -m pytest tests -q
 ```
 
-The tests check the parameter conversion, Hermiticity, time reversal and zone
-periodicity, the exact reduction of the lattice model to the paper's Eq. (1)
-at K, analytic band edges (bilayer, ABC trilayer, ABAB and ABCB dimer chains),
-the DOS normalisation (monolayer, bilayer, full-zone state count) and the
-agreement with the digitised DOS of the paper.  For the bulk model they check
-the SWMcC energies on the K–H line, that bulk Bloch states solve the
-finite-stack Hamiltonian in its interior, the DOS in the γ0, γ1 limit
-(graphene for ABC, the k_z average of bilayers for AB) and the mesh refinement;
-for the ERS script, the Fermi level of a slab, the Raman shift to energy mapping,
-the mirror-pair spectrum (bilayer in closed form, σ_z-weighted sum over all pairs
-of bands for both stackings), the line-width kernel, the tables written to disk
-and the report; for the bulk pair spectrum, the closed forms of the γ0, γ1 limit
-and the comparison with the DOS.
+The tests check the parameter conversion, the stacking names (explicit trilayers
+do not depend on `N_layers`; the fixture uses `N_layers=5`), Hermiticity, time
+reversal and zone periodicity, the exact reduction of the lattice model to the
+paper's Eq. (1) at K, analytic band edges (bilayer, ABC trilayer, ABAB and ABCB
+dimer chains), the DOS normalisation (monolayer, bilayer, full-zone state count),
+the valley-window limit, the agreement with the digitised DOS of the paper and
+the missing γ4 asymmetry of its Fig. 1.  For the bulk model they check the SWMcC
+energies on the K–H line, that bulk Bloch states solve the finite-stack
+Hamiltonian in its interior, the DOS in the γ0, γ1 limit (graphene for ABC, the
+k_z average of bilayers for AB) and the mesh refinement.
 
 ## Other scripts
 

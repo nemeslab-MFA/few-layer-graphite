@@ -70,6 +70,7 @@ __all__ = [
     "reciprocal_vectors", "K_point", "get_brillouin_zone", "get_k_path",
     "calculate_bands", "plot_bands", "plot_panel_comparison", "plot_band_density",
     "calculate_density_of_states", "calculate_density_of_states_window",
+    "valley_window_limit", "check_valley_window",
     "plot_dos", "load_dos_from_csv",
 ]
 
@@ -144,14 +145,19 @@ def set_parameters(**kwargs):
     configuration keys N_layers, stacking, n_k, k_range.
     """
     g = globals()
+    unknown = [key for key in kwargs
+               if key not in _VELOCITY_KEYS and key not in _PARAMETER_KEYS and key not in _CONFIG_KEYS]
+    if unknown:
+        raise KeyError(f"Unknown parameter '{unknown[0]}'. Known keys: "
+                       f"{_PARAMETER_KEYS + _CONFIG_KEYS + tuple(_VELOCITY_KEYS)}")
+    # couplings and the lattice constant first, so that velocities given in the
+    # same call are converted with the new lattice constant
+    for key, value in kwargs.items():
+        if key not in _VELOCITY_KEYS:
+            g[key] = value
     for key, value in kwargs.items():
         if key in _VELOCITY_KEYS:
             g[_VELOCITY_KEYS[key]] = hopping_from_velocity(float(value), g["a"])
-        elif key in _PARAMETER_KEYS or key in _CONFIG_KEYS:
-            g[key] = value
-        else:
-            raise KeyError(f"Unknown parameter '{key}'. Known keys: "
-                           f"{_PARAMETER_KEYS + _CONFIG_KEYS + tuple(_VELOCITY_KEYS)}")
 
 
 def use_paper_parameters():
@@ -178,29 +184,39 @@ def get_info():
 # =============================================================================
 
 _LAYER_INDEX = {"A": 0, "B": 1, "C": 2}
+_PATTERNS = {"abc": "ABC", "aba": "AB"}                     # pattern, or the trilayer without a layer count
+_PATTERN_WORDS = {"rhombohedral": "ABC", "bernal": "AB"}    # always a pattern
 
 
 def stacking_sequence(N=None, stacking_type=None):
     """
     Return the explicit stacking sequence as a string of letters A/B/C.
 
-    ``stacking_type`` may be 'abc'/'rhombohedral' or 'aba'/'bernal' (periodic
-    patterns of N layers; N defaults to the module variable ``N_layers``), or an
-    explicit sequence such as 'AB', 'ABCB' or 'ABCAB' (then N is its length).
-    Adjacent letters must differ.  Note that 'abc' and 'aba' always denote the
-    periodic patterns; pass N=3 to get the trilayers explicitly.
+    ``stacking_type`` is one of
+      * 'rhombohedral' or 'bernal': the periodic pattern of N layers (N defaults
+        to the module variable ``N_layers``);
+      * 'abc' or 'aba' (any case): the periodic pattern of N layers when a layer
+        count is supplied, and otherwise the trilayer itself.  The layer count is
+        the argument N, or ``N_layers`` when stacking_type is None and the module
+        configuration (``stacking``, ``N_layers``) is used;
+      * any other explicit sequence such as 'AB', 'ABCB' or 'ABCAB' (N, if given,
+        must equal its length).
+    Adjacent letters must differ.  So hamiltonian(kx, ky, stacking_type='ABA')
+    is always the Bernal trilayer, whatever ``N_layers`` is, while
+    hamiltonian(kx, ky, 8, 'aba') and set_parameters(N_layers=8, stacking='aba')
+    give eight Bernal-stacked layers.
     """
     if stacking_type is None:
         stacking_type = stacking
+        if N is None and str(stacking_type).strip().lower() in _PATTERNS:
+            N = N_layers
     if isinstance(stacking_type, (list, tuple)):
         stacking_type = "".join(stacking_type)
     key = str(stacking_type).strip().lower()
-    if key in ("abc", "rhombohedral"):
+    if key in _PATTERN_WORDS or (key in _PATTERNS and N is not None):
         N = N_layers if N is None else int(N)
-        seq = ("ABC" * (N // 3 + 1))[:N]
-    elif key in ("aba", "bernal"):
-        N = N_layers if N is None else int(N)
-        seq = ("AB" * (N // 2 + 1))[:N]
+        unit = _PATTERNS.get(key) or _PATTERN_WORDS[key]
+        seq = (unit * (N // len(unit) + 1))[:N]
     else:
         seq = key.upper()
         if any(ch not in _LAYER_INDEX for ch in seq):
@@ -715,6 +731,11 @@ def _cumulative_states_triangles(e_tri, area, edges):
 
 
 def _gaussian_smooth(y, sigma, dx):
+    """
+    Convolve y (uniform grid of spacing dx) with a normalised Gaussian of
+    standard deviation sigma.  The curve is continued by its end values, so the
+    ends are not pulled towards zero.
+    """
     if sigma is None or sigma <= 0.0:
         return y
     s = sigma / dx
@@ -722,7 +743,26 @@ def _gaussian_smooth(y, sigma, dx):
     x = np.arange(-radius, radius + 1, dtype=float)
     kernel = np.exp(-0.5 * (x / s) ** 2)
     kernel /= kernel.sum()
-    return np.convolve(y, kernel, mode="same")
+    return np.convolve(np.pad(y, radius, mode="edge"), kernel, mode="valid")
+
+
+def valley_window_limit(a_lat=None):
+    """
+    Largest half-width (1/A) of a square k window around K that does not
+    overlap the window around K' (half the K-K' distance along k_y,
+    pi / (sqrt(3) a)).  A larger window counts states twice.
+    """
+    a_lat = a if a_lat is None else a_lat
+    return np.pi / (np.sqrt(3.0) * a_lat)
+
+
+def check_valley_window(k_max, a_lat=None):
+    """Raise ValueError if a square window of half-width k_max around K overlaps the one around K'."""
+    limit = valley_window_limit(a_lat)
+    if k_max > limit:
+        raise ValueError(f"k window of half-width {k_max:.3f} 1/A around K overlaps the window around K' "
+                         f"(limit {limit:.3f} 1/A): the energy range is too wide for the valley "
+                         "integration; use region='bz' or a narrower range.")
 
 
 def _auto_k_max(energy_range):
@@ -783,10 +823,14 @@ def calculate_density_of_states(energy_range=(-0.8, 0.8), N=None, stacking_type=
 
     Returns a dict with 'energy' (bin centres, eV), 'dos_per_unit_cell'
     (states/(eV unit cell)), 'dos_per_area' (states/(eV A^2)), 'dos_per_cm2'
-    (states/(eV cm^2)), 'cumulative_per_area' (states/A^2 below each bin edge,
-    relative to emin), 'energy_edges' and 'parameters'.  Spin degeneracy 2 is
+    (states/(eV cm^2)), 'cumulative_per_area' (states/A^2 below each bin edge:
+    every state of the k window or zone below that energy, including the ones
+    below emin), 'energy_edges' and 'parameters'.  Spin degeneracy 2 is
     included.  With region='valley' the routine checks that no band enters the
-    window on the border of the k window and warns otherwise.
+    window on the border of the k window and warns otherwise, and refuses a
+    tight-binding window that overlaps the one of the other valley
+    (k_max > pi/(sqrt(3) a), about 0.74 1/A or |E| of about 3.9 eV); use
+    region='bz' there.
     """
     seq = stacking_sequence(N, stacking_type)
     e_min, e_max = sorted(map(float, energy_range))
@@ -798,6 +842,8 @@ def calculate_density_of_states(energy_range=(-0.8, 0.8), N=None, stacking_type=
     if region == "valley":
         if k_max is None:
             k_max = _auto_k_max((e_min, e_max))
+        if model == "tb":
+            check_valley_window(k_max)
         n_side = int(np.ceil(2.0 * k_max / dk)) + 1
         t = np.linspace(-k_max, k_max, n_side)
         h = t[1] - t[0]

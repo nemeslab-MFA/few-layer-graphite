@@ -468,3 +468,23 @@ def test_fig1_lacks_the_gamma4_asymmetry(seq, fig):
         assert abs(measured - ratio["none"]) < 0.015, (seq, measured, ratio)
     else:
         assert abs(measured - ratio["printed"]) < abs(measured - ratio["none"]), (seq, measured, ratio)
+
+
+def test_abc_trilayer_dirac_points_lie_on_the_K_M_lines():
+    """The relative sign of gamma3 and gamma2 of the model is the one of the DFT
+    parametrisations (Zhang et al. 2010: three Dirac points on K-M, about 0.015 1/A
+    from K).  The opposite relative sign puts them at 0.022 1/A; gamma2 > 0 puts
+    them on the K-Gamma lines."""
+    mlg.set_parameters(gamma4=0.0, gamma5=0.0, Delta_prime=0.0)
+    K = mlg.K_point()
+    angle = np.deg2rad(np.arange(0.0, 360.0, 0.5))
+    radius = np.linspace(0.002, 0.04, 381)
+    R, A = np.meshgrid(radius, angle)
+    E = mlg.eigenvalues(K[0] + R * np.cos(A), K[1] + R * np.sin(A), None, "ABC")
+    gap = (E[..., 3] - E[..., 2]).ravel()
+    lowest = np.argsort(gap)[:3]
+    assert gap[lowest].max() < 1e-3
+    assert np.all(np.abs(R.ravel()[lowest] - 0.0135) < 0.001)
+    # K-M directions: 0, 120 and 240 degrees from the +k_x axis at K = (4 pi / 3a, 0)
+    found = np.sort(np.rad2deg(A.ravel()[lowest]) % 360.0)
+    assert np.allclose(found, [0.0, 120.0, 240.0], atol=1.0), found

@@ -42,6 +42,20 @@ f(k) = Σ_j exp(i k·δ_j) over the three A→B bond vectors; near K_ξ,
 −γ0 f = ħv (ξ p_x − i p_y), with ħv_i = (3/2) a_cc γ_i.  Velocities can be
 given directly: `set_parameters(v=1.0e6, v3=0.1e6, v4=0.022e6)`.
 
+Sign of γ3 relative to γ2.  In rhombohedral stacks the relative sign of γ3 and
+γ2 is physical: flipping both is a rotation of the bands by 180°, flipping one
+changes the spectrum by up to 16 meV.  The model has the relative sign of
+McEllistrim et al., and with it the three Dirac points of the ABC trilayer lie
+on the K–M lines 0.0135 Å⁻¹ from K.  That relative sign agrees with every
+DFT-based parametrisation found: Zhang et al., PRB 82, 035409 (2010) (Dirac
+points on K–M at about 0.015 Å⁻¹ in DFT); Jung and MacDonald, PRB 88, 075408
+(2013); Menezes et al., PRB 89, 035431 (2014) (LDA and GW); Park et al., PRB
+108, 155406 (2023); Herzog-Arbeitman et al., PRB 109, 205122 (2024).  Koshino and
+McCann, PRB 80, 165409 (2009) and Slizovskiy et al., Commun. Phys. 2, 164 (2019)
+use the opposite relative sign with γ2 and γ3 taken over from Bernal graphite,
+where that sign has no effect on the spectrum.  It puts the Dirac points at
+0.022 Å⁻¹.  García-Ruiz et al. (2019) have no γ2.
+
 ## Usage
 
 ```python

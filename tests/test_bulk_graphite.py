@@ -21,8 +21,10 @@ FAST = dict(n_kz=24, dk=4.0e-3, refine=4, num_energy_points=500)
 @pytest.fixture(autouse=True)
 def paper_parameters():
     mlg.use_paper_parameters()
+    mlg.set_parameters(N_layers=5)          # not 3: nothing here may depend on it
     yield
     mlg.use_paper_parameters()
+    mlg.set_parameters(N_layers=3)
 
 
 def hbar_v():
@@ -161,60 +163,3 @@ def test_refined_dos_matches_a_uniformly_fine_mesh():
     # ... and leaves the coarse result untouched outside, without a step at the border
     assert np.array_equal(refined["dos_per_atom"][outside], coarse["dos_per_atom"][outside])
     assert np.abs(refined["dos_per_atom"][x > 0.02] / fine["dos_per_atom"][x > 0.02] - 1.0).max() < 5e-3
-
-
-# ----------------------------------------------------------------------------
-# joint density of states of the mirror pairs
-# ----------------------------------------------------------------------------
-
-PAIR_EDGES = np.arange(0.0285, 0.75, 0.003)
-
-
-def test_pair_spectrum_rhombohedral_gamma0_gamma1_is_half_the_dos():
-    # one pair of mirror bands: hbar w = 2 |e|, so J(w) = D(w / 2) / 2 with the linear DOS of graphene
-    r = bg.calculate_bulk_pair_spectrum(PAIR_EDGES, "abc", 0.0, params=GAMMA01_ONLY, n_kz=24, dk=4.0e-3, refine=4)
-    w = r["excitation"]
-    analytic = mlg.unit_cell_area() * w / (4.0 * np.pi * hbar_v() ** 2)
-    assert np.abs(r["pairs_per_atom"] / analytic - 1.0)[w > 0.05].max() < 0.03
-
-
-def test_pair_spectrum_bernal_gamma0_gamma1_is_the_kz_average_of_bilayers():
-    # bilayer with coupling g: the inner pair gives (w + g) / (2 pi (hv)^2) per area, the outer one (w - g) above 2 g
-    r = bg.calculate_bulk_pair_spectrum(PAIR_EDGES, "ab", 0.0, params=GAMMA01_ONLY, n_kz=24, dk=4.0e-3, refine=4)
-    w = r["excitation"][:, None]
-    phase = (np.arange(4000) + 0.5) * np.pi / 8000.0
-    g = 2.0 * mlg.gamma1 * np.cos(phase)[None, :]
-    slab = ((w + g) + np.where(w > 2.0 * g, w - g, 0.0)).mean(axis=1) / (2.0 * np.pi * hbar_v() ** 2)
-    analytic = slab * mlg.unit_cell_area() / 4.0
-    assert np.abs(r["pairs_per_atom"] / analytic - 1.0)[w[:, 0] > 0.05].max() < 0.04
-
-
-def test_pair_spectrum_of_the_full_model():
-    edges = np.arange(0.0015, 0.6, 0.003)
-    fast = dict(n_kz=24, dk=4.0e-3, num_energy_points=500)
-    spectra = {}
-    for key in ("ab", "abc"):
-        dos = bg.calculate_bulk_density_of_states((-0.5, 0.5), key, refine=4, **fast)
-        pairs = bg.calculate_bulk_pair_spectrum(edges, key, dos["fermi_energy"], n_kz=24, dk=4.0e-3, refine=4)
-        w = pairs["excitation"]
-        rule = 0.25 * (np.interp(0.5 * w, dos["energy"] - dos["fermi_energy"], dos["dos_per_atom"])
-                       + np.interp(-0.5 * w, dos["energy"] - dos["fermi_energy"], dos["dos_per_atom"]))
-        spectra[key] = (w, pairs["pairs_per_atom"], rule)
-    # rhombohedral bands mirror about the Dirac points: the pair spectrum is half the DOS at half the energy
-    w, pairs, rule = spectra["abc"]
-    assert np.abs(pairs / rule - 1.0)[(w > 0.05) & (w < 0.55)].max() < 0.03
-    # hexagonal graphite: the same within a few percent away from the Fermi surface, but the pockets of the
-    # semimetal block the pairs of low energy, which the DOS does not know
-    w, pairs, rule = spectra["ab"]
-    assert np.abs(pairs / rule - 1.0)[(w > 0.1) & (w < 0.55)].max() < 0.05
-    assert pairs[w < 0.012].mean() < 0.4 * rule[w < 0.012].mean()
-
-
-def test_pair_spectrum_keeps_the_coarse_mesh_above_the_refined_window():
-    edges = np.arange(0.0015, 0.4, 0.003)
-    common = dict(stacking_type="abc", fermi=0.042, n_kz=2, dk=4.0e-3)
-    refined = bg.calculate_bulk_pair_spectrum(edges, refine=8, **common)
-    coarse = bg.calculate_bulk_pair_spectrum(edges, refine=1, **common)
-    w = refined["excitation"]
-    assert np.array_equal(refined["pairs_per_atom"][w > 0.12], coarse["pairs_per_atom"][w > 0.12])
-    assert np.abs(refined["pairs_per_atom"] - coarse["pairs_per_atom"])[w < 0.03].max() > 0.0

@@ -20,10 +20,12 @@ PAPER_STACKS = ["ABAB", "ABCA", "ABCB"]
 
 @pytest.fixture(autouse=True)
 def paper_parameters():
+    # N_layers is deliberately not 3: explicit trilayers ('ABC', 'ABA') must not depend on it
     mlg.use_paper_parameters()
-    mlg.set_parameters(N_layers=3, stacking="abc")
+    mlg.set_parameters(N_layers=5, stacking="abc")
     yield
     mlg.use_paper_parameters()
+    mlg.set_parameters(N_layers=3, stacking="abc")
 
 
 def hbar_v():
@@ -49,8 +51,13 @@ def test_parameters_follow_the_paper():
 def test_set_parameters_accepts_velocities():
     mlg.set_parameters(v=1.1e6)
     assert abs(mlg.velocity_from_hopping(mlg.gamma0) - 1.1e6) < 1e-6
+    # a velocity is converted with the lattice constant given in the same call, whatever the order
+    mlg.set_parameters(v=1.0e6, a=2.50)
+    assert mlg.a == 2.50 and abs(mlg.velocity_from_hopping(mlg.gamma0, 2.50) - 1.0e6) < 1e-6
+    before = mlg.get_parameters()
     with pytest.raises(KeyError):
-        mlg.set_parameters(nonsense=1.0)
+        mlg.set_parameters(gamma1=0.5, nonsense=1.0)
+    assert mlg.get_parameters() == before                  # nothing is set when a key is unknown
 
 
 def test_stacking_sequences():
@@ -63,6 +70,31 @@ def test_stacking_sequences():
         mlg.stacking_sequence(None, "AAB")
     with pytest.raises(ValueError):
         mlg.stacking_sequence(3, "ABCB")
+
+
+@pytest.mark.parametrize("n_layers", [5, 8, 12])
+def test_explicit_trilayers_ignore_the_configured_layer_number(n_layers):
+    mlg.set_parameters(N_layers=n_layers, stacking="aba")
+    # passed without N, 'ABC' and 'ABA' are the trilayers in any case ...
+    for name, seq in (("ABC", "ABC"), ("ABA", "ABA"), ("abc", "ABC"), ("aba", "ABA")):
+        assert mlg.stacking_sequence(None, name) == seq
+        assert mlg.hamiltonian(0.1, 0.2, stacking_type=name).shape == (6, 6)
+        assert mlg.kp_hamiltonian(0.01, 0.02, stacking_type=name).shape == (6, 6)
+    K = mlg.K_point()
+    trilayer = mlg.eigenvalues(K[0] + 0.02, K[1], None, "ABA")
+    mlg.set_parameters(N_layers=3)
+    assert np.array_equal(trilayer, mlg.eigenvalues(K[0] + 0.02, K[1], None, "ABA"))
+    mlg.set_parameters(N_layers=n_layers)
+    d = mlg.calculate_density_of_states((-0.2, 0.2), stacking_type="ABC", dk=4e-3, num_energy_points=10)
+    assert d["parameters"]["N_layers"] == 3 and d["parameters"]["stacking"] == "ABC"
+    # ... and the periodic patterns when a layer count comes with them
+    assert mlg.stacking_sequence() == ("AB" * n_layers)[:n_layers]
+    assert mlg.stacking_sequence(n_layers, "ABC") == ("ABC" * n_layers)[:n_layers]
+    assert mlg.stacking_sequence(None, "rhombohedral") == ("ABC" * n_layers)[:n_layers]
+    assert mlg.stacking_sequence(None, "Bernal") == ("AB" * n_layers)[:n_layers]
+    assert mlg.hamiltonian(0.1, 0.2).shape == (2 * n_layers, 2 * n_layers)
+    E, _ = mlg.calculate_bands(path_type="px")
+    assert E.shape[1] == 2 * n_layers
 
 
 def test_steps_and_dimer_bond_counts():
@@ -251,6 +283,29 @@ def test_dos_full_zone_counts_all_states():
         assert abs(d["cumulative_per_area"][-1] * mlg.unit_cell_area() - n_states) < 1e-9
 
 
+def test_valley_window_must_not_overlap_the_other_valley():
+    limit = mlg.valley_window_limit()
+    K, Kp = mlg.K_point(+1), mlg.get_brillouin_zone(plot=False)["K_cart"][1]   # neighbouring corner, other valley
+    assert abs(limit - 0.5 * abs(Kp[1] - K[1])) < 1e-12
+    with pytest.raises(ValueError):
+        mlg.calculate_density_of_states((-4.5, 4.5), stacking_type="A")
+    with pytest.raises(ValueError):
+        mlg.calculate_density_of_states((-0.5, 0.5), stacking_type="A", k_max=1.01 * limit)
+    mlg.calculate_density_of_states((-0.5, 0.5), stacking_type="A", k_max=0.99 * limit, dk=0.02,
+                                    num_energy_points=10)
+
+
+def test_gaussian_smoothing_keeps_the_ends():
+    y = np.full(200, 2.0) + np.linspace(0.0, 1.0, 200)
+    smooth = mlg._gaussian_smooth(y, 0.05, 0.01)                   # kernel radius 20 points
+    assert smooth.shape == y.shape
+    assert np.allclose(smooth[20:-20], y[20:-20])                  # a straight line is unchanged
+    assert abs(smooth[0] - y[0]) < 0.02 and abs(smooth[-1] - y[-1]) < 0.02    # zero padding would halve them
+    spike = np.zeros(101)
+    spike[50] = 1.0
+    assert abs(mlg._gaussian_smooth(spike, 0.05, 0.01).sum() - 1.0) < 1e-12
+
+
 def test_dos_window_and_csv_roundtrip(tmp_path):
     w = mlg.calculate_density_of_states_window(-0.1, 0.1, stacking_type="ABC", dk=2e-3)
     assert w["integrated_states_per_unit_cell"] > 0.0
@@ -367,7 +422,8 @@ def test_dos_magnitude_matches_paper_fig1(seq):
     """With the paper's printed parameters the k.p DOS lies 1-3 % (electrons) and
     6-9 % (holes) above the digitised curves of Fig. 1; the tight-binding DOS is a
     further 2 % higher (median deviation over the window: 5-8 % for k.p, 7-9 % for
-    tight binding).  The tolerances are set accordingly."""
+    tight binding).  The hole-side excess is the gamma4 asymmetry that Fig. 1 lacks
+    (see test_fig1_lacks_the_gamma4_asymmetry).  The tolerances are set accordingly."""
     paper = load_paper_dos(seq)
     results = {}
     for model in ("kp", "tb"):
@@ -388,3 +444,47 @@ def test_dos_magnitude_matches_paper_fig1(seq):
         a = np.interp(e, results["tb"]["energy"], results["tb"]["dos_per_cm2"])
         b = np.interp(e, results["kp"]["energy"], results["kp"]["dos_per_cm2"])
         assert abs(a / b - 1.0) < 0.03
+
+
+def _hole_electron_ratio(energy, dos, e=0.5):
+    return np.interp(-e, energy, dos) / np.interp(e, energy, dos)
+
+
+@pytest.mark.parametrize("seq,fig", [(s, 1) for s in PAPER_STACKS] + [("ABC", 7), ("ABCAB", 7), ("ABABA", 7)])
+def test_fig1_lacks_the_gamma4_asymmetry(seq, fig):
+    """The hole/electron DOS ratio at +-0.5 eV of the Fig. 1 curves is that of the model
+    with gamma4 = 0 (within 0.015); the Fig. 7 curves agree with the printed v4 instead."""
+    paper = load_paper_dos(seq, fig)
+    measured = _hole_electron_ratio(paper["energy"], paper["dos"])
+    ratio = {}
+    for name, gamma4 in (("printed", mlg.gamma4), ("none", 0.0)):
+        mlg.set_parameters(gamma4=gamma4)
+        d = mlg.calculate_density_of_states((-0.8, 0.8), stacking_type=seq, model="kp", dk=1.5e-3,
+                                            num_energy_points=400)
+        ratio[name] = _hole_electron_ratio(d["energy"], d["dos_per_cm2"])
+    mlg.use_paper_parameters()
+    assert ratio["printed"] - ratio["none"] > 0.05                  # gamma4 makes the holes heavier
+    if fig == 1:
+        assert abs(measured - ratio["none"]) < 0.015, (seq, measured, ratio)
+    else:
+        assert abs(measured - ratio["printed"]) < abs(measured - ratio["none"]), (seq, measured, ratio)
+
+
+def test_abc_trilayer_dirac_points_lie_on_the_K_M_lines():
+    """The relative sign of gamma3 and gamma2 of the model is the one of the DFT
+    parametrisations (Zhang et al. 2010: three Dirac points on K-M, about 0.015 1/A
+    from K).  The opposite relative sign puts them at 0.022 1/A; gamma2 > 0 puts
+    them on the K-Gamma lines."""
+    mlg.set_parameters(gamma4=0.0, gamma5=0.0, Delta_prime=0.0)
+    K = mlg.K_point()
+    angle = np.deg2rad(np.arange(0.0, 360.0, 0.5))
+    radius = np.linspace(0.002, 0.04, 381)
+    R, A = np.meshgrid(radius, angle)
+    E = mlg.eigenvalues(K[0] + R * np.cos(A), K[1] + R * np.sin(A), None, "ABC")
+    gap = (E[..., 3] - E[..., 2]).ravel()
+    lowest = np.argsort(gap)[:3]
+    assert gap[lowest].max() < 1e-3
+    assert np.all(np.abs(R.ravel()[lowest] - 0.0135) < 0.001)
+    # K-M directions: 0, 120 and 240 degrees from the +k_x axis at K = (4 pi / 3a, 0)
+    found = np.sort(np.rad2deg(A.ravel()[lowest]) % 360.0)
+    assert np.allclose(found, [0.0, 120.0, 240.0], atol=1.0), found

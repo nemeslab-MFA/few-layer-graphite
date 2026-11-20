@@ -45,8 +45,8 @@ GRID = {
 TAILS = (0.04, 0.06, 0.08)
 
 
-def key(tag, eps, n13):
-    return f"{tag}_eps{eps:04.1f}_n{n13:+.2f}"
+def key(tag, eps, n13, cpot=0.0):
+    return f"{tag}_eps{eps:04.1f}_n{n13:+.2f}" + (f"_c{cpot:+.3f}" if cpot else "")
 
 
 def measured(tag):
@@ -73,8 +73,9 @@ def feats(tag, V, y, smooth=0):
 
 
 def evaluate(job):
-    tag, eps, n13 = job
-    path = os.path.join(OUT, key(tag, eps, n13) + ".json")
+    tag, eps, n13 = job[:3]
+    cpot = job[3] if len(job) > 3 else 0.0
+    path = os.path.join(OUT, key(tag, eps, n13, cpot) + ".json")
     if os.path.exists(path):
         return json.load(open(path))
     sys.path.insert(0, REPO)
@@ -101,14 +102,14 @@ def evaluate(job):
     bot = float((U - p.mu0)[5])
     j = int(np.argmin(np.abs(E - bot)))
     # with the tip
-    sim = Simulation(sample, Tip(**TIP), temperature=9.0, grid="draft")
-    m = swt.CheckpointedSweep(sim, "RG", BIASES, os.path.join(OUT, key(tag, eps, n13) + ".ckpt.json")).run()
+    sim = Simulation(sample, Tip(**dict(TIP, contact_potential=cpot)), temperature=9.0, grid="draft")
+    m = swt.CheckpointedSweep(sim, "RG", BIASES, os.path.join(OUT, key(tag, eps, n13, cpot) + ".ckpt.json")).run()
     tipped = m.spectrum(0, bias=FINE, **spec).didv
     Vm, ym, E_fb = measured(tag)
     win = (Vm >= -0.45) & (Vm <= 0.45)
     fm = feats(tag, Vm[win], ym[win], smooth=9)
     am = asymmetry(Vm[win], ym[win], E_fb)
-    out = dict(tag=tag, eps=eps, nsub=nsub, sigma=sig, U_minus_mu0=(U - p.mu0).tolist(), mu0=float(p.mu0),
+    out = dict(tag=tag, eps=eps, nsub=nsub, cpot=cpot, sigma=sig, U_minus_mu0=(U - p.mu0).tolist(), mu0=float(p.mu0),
                carriers=float(np.sum(p.n)), carriers_layers=np.asarray(p.n).ravel().tolist(), bottom_fb=bot,
                bottom_in_top=float(D[j, 0] / np.median(D[(np.abs(E - bot) < 0.1), 0])),
                measured_features=fm.tolist(), measured_asym=am.tolist(), failures=len(m.failures),
@@ -126,16 +127,22 @@ def evaluate(job):
         out[lab]["score"] = out[lab]["pos_rms"] / 0.010 + out[lab]["asym_rms"] / 0.05 + 2.0 * (len(f) - ok.sum())
     out["seconds"] = time.time() - t0
     json.dump(out, open(path, "w"))
-    print(f"{key(tag, eps, n13)}: bottom FB {1e3 * bot:+.0f} meV; with tip FB {1e3 * out['tip']['features'][1]:+.1f} "
+    print(f"{key(tag, eps, n13, cpot)}: bottom FB {1e3 * bot:+.0f} meV; with tip FB {1e3 * out['tip']['features'][1]:+.1f} "
           f"(meas {1e3 * fm[1]:+.1f}), feature rms {1e3 * out['tip']['pos_rms']:.1f} mV, tails {out['tip']['asym_rms']:.3f}, "
           f"res {out['tip']['residual']:.2f}; no tip FB {1e3 * out['free']['features'][1]:+.1f}, rms {1e3 * out['free']['pos_rms']:.1f}; "
           f"{out['seconds']:.0f} s", flush=True)
     return out
 
 
-def run():
+CPOT_CELLS = {"940": [(4.0, 1.5), (4.0, 2.0), (6.0, 1.8)], "514": [(15.0, -0.4), (10.0, -0.4), (8.0, -0.5), (2.6, -2.0)]}
+CPOTS = (-0.15, -0.075, 0.075, 0.15)
+
+
+def run(cpot_scan=False):
     os.makedirs(OUT, exist_ok=True)
     jobs = [(t, e, n) for t in ("940", "514") for e, ns in GRID[t].items() for n in ns]
+    if cpot_scan:
+        jobs = [(t, e, n, c) for t, cells in CPOT_CELLS.items() for e, n in cells for c in CPOTS]
     with mp.get_context("spawn").Pool(4) as pool:
         for _ in pool.imap_unordered(evaluate, jobs):
             pass
@@ -149,7 +156,7 @@ def summary():
         print(f"== {tag}: measured features {np.round(1e3 * np.asarray(rs[0]['measured_features']))} mV, tails "
               f"{np.round(rs[0]['measured_asym'], 2)}")
         for r in rs:
-            print(f"  eps {r['eps']:4.1f} n_sub {r['nsub'] / 1e13:+5.2f}e13 | tip: score {r['tip']['score']:5.1f} feats "
+            print(f"  eps {r['eps']:4.1f} n_sub {r['nsub'] / 1e13:+5.2f}e13 CPot {r.get('cpot', 0.0):+.3f} | tip: score {r['tip']['score']:5.1f} feats "
                   f"{np.round(1e3 * np.asarray(r['tip']['features']))} rms {1e3 * r['tip']['pos_rms']:5.1f} tails "
                   f"{r['tip']['asym_rms']:.3f} res {r['tip']['residual']:.2f} | no tip: score {r['free']['score']:5.1f} "
                   f"FB {1e3 * r['free']['features'][1]:+5.1f} rms {1e3 * r['free']['pos_rms']:5.1f} | bottom FB "
@@ -170,4 +177,4 @@ def summary():
 if __name__ == "__main__":
     for v in ("OMP_NUM_THREADS", "NUMBA_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = "1"
-    {"run": run, "summary": summary}[sys.argv[1]]()
+    {"run": run, "cpot": lambda: run(True), "summary": summary}[sys.argv[1]]()

@@ -27,7 +27,7 @@ if __name__ == "__main__":
                          "axes.labelcolor": INK, "xtick.color": INK2, "ytick.color": INK2})
     fig, axs = plt.subplots(2, 3, figsize=(16, 8.8), gridspec_kw={"width_ratios": [1.7, 1.0, 1.0]})
     for row, tag in enumerate(("940", "514")):
-        rs = [r for r in rows if r["tag"] == tag]
+        rs = [r for r in rows if r["tag"] == tag and not r.get("cpot")]
         if not rs:
             continue
         Vm, ym, E_fb = step1.measured(tag)
@@ -56,10 +56,10 @@ if __name__ == "__main__":
             for r in rs:
                 v = r["tip"]["score"] if what == "score" else 1e3 * r["tip"]["fb_err"]
                 sc = col_ax.scatter(r["eps"], r["nsub"] / 1e13, c=[v], cmap="viridis_r" if what == "score" else "RdBu_r",
-                                    vmin=None if what == "score" else -30, vmax=None if what == "score" else 30, s=160,
+                                    vmin=5 if what == "score" else -30, vmax=15 if what == "score" else 30, s=160,
                                     edgecolors="white")
                 col_ax.annotate(f"{v:.0f}", (r["eps"], r["nsub"] / 1e13), fontsize=6.5, ha="center", va="center",
-                                color="white" if what == "score" else INK)
+                                color="white" if (what == "score" and v > 9) else INK)
             col_ax.set(xlabel="interlayer ε", ylabel="n_sub (10¹³ cm⁻²)", xscale="log")
             col_ax.set_xticks(eps, [f"{e:g}" for e in eps])
             col_ax.set_title(lab, fontsize=9.5, loc="left", color=INK)

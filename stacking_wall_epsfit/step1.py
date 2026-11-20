@@ -177,4 +177,10 @@ def summary():
 if __name__ == "__main__":
     for v in ("OMP_NUM_THREADS", "NUMBA_NUM_THREADS", "OPENBLAS_NUM_THREADS", "MKL_NUM_THREADS"):
         os.environ[v] = "1"
-    {"run": run, "cpot": lambda: run(True), "summary": summary}[sys.argv[1]]()
+    if sys.argv[1] == "cells":                   # python step1.py cells 940:2.6:2.0:-0.15 ...
+        jobs = [tuple([a.split(":")[0]] + [float(x) for x in a.split(":")[1:]]) for a in sys.argv[2:]]
+        os.makedirs(OUT, exist_ok=True)
+        with mp.get_context("spawn").Pool(4) as pool:
+            list(pool.imap_unordered(evaluate, jobs))
+    else:
+        {"run": run, "cpot": lambda: run(True), "summary": summary}[sys.argv[1]]()

@@ -21,8 +21,10 @@ def load():
 
 
 if __name__ == "__main__":
+    import sys
     import step1
     rows = load()
+    with_cpot = len(sys.argv) > 1 and sys.argv[1] == "cpot"
     plt.rcParams.update({"font.family": "DejaVu Sans", "font.size": 9.5, "axes.edgecolor": MUTED,
                          "axes.labelcolor": INK, "xtick.color": INK2, "ytick.color": INK2})
     fig, axs = plt.subplots(2, 3, figsize=(16, 8.8), gridspec_kw={"width_ratios": [1.7, 1.0, 1.0]})
@@ -34,13 +36,14 @@ if __name__ == "__main__":
         win = (Vm >= -0.45) & (Vm <= 0.45)
         ax = axs[row, 0]
         ax.plot(Vm[win], ym[win], color=INK, lw=1.8, label="measured (+⁵)")
-        best = sorted(rs, key=lambda r: r["tip"]["score"])[:2]
+        pool = [r for r in rows if r["tag"] == tag] if with_cpot else rs
+        best = sorted(pool, key=lambda r: r["tip"]["score"])[:2]
         for i, r in enumerate(best):
             col = [BLUE, ORANGE][i]
             for lab, ls in (("tip", "-"), ("free", "--")):
                 y = np.asarray(r[lab]["didv"]) * r[lab]["scale"]
                 ax.plot(FINE, y, color=col, ls=ls, lw=1.3 if lab == "tip" else 1.0,
-                        label=(f"ε = {r['eps']:g}, n_sub = {r['nsub'] / 1e13:+.2f}×10¹³: "
+                        label=(f"ε = {r['eps']:g}, n_sub = {r['nsub'] / 1e13:+.2f}×10¹³, CPot {r.get('cpot', 0.0):+.3f} eV: "
                                f"{'with the tip' if lab == 'tip' else 'without'} (score {r[lab]['score']:.1f})"))
             ax.axvline(r["bottom_fb"], color=col, lw=0.8, ls=":")
         for f in rs[0]["measured_features"]:
@@ -66,6 +69,6 @@ if __name__ == "__main__":
             for sp in ("top", "right"):
                 col_ax.spines[sp].set_visible(False)
     fig.tight_layout()
-    out = os.path.join(REPO, "examples", "stacking_wall_step1.png")
+    out = os.path.join(REPO, "examples", "stacking_wall_step1_cpot.png" if with_cpot else "stacking_wall_step1.png")
     fig.savefig(out, dpi=160)
     print("wrote", out)

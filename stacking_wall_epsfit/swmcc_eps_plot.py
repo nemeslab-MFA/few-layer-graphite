@@ -19,7 +19,8 @@ import swmcc_eps as SE  # noqa: E402
 
 INK, INK2, MUTED, GRID = "#0b0b0b", "#52514e", "#8a8984", "#e6e5e0"
 CAT = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100"]                       # categorical slots 1-4: Delta E_F
-RAMP = ["#86b6ef", "#5598e7", "#3987e5", "#2a78d6", "#1c5cab", "#184f95", "#0d366b"]   # ordinal blue: eps
+RAMP = ["#86b6ef", "#6da7ec", "#5598e7", "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281",
+        "#0d366b"]                                                             # ordinal blue 250-700: eps
 DEF_LAB = {0.0: "clean", -0.04: "ΔE_F −40 meV", -0.07: "ΔE_F −70 meV", -0.10: "ΔE_F −100 meV"}
 FEAT = ("lower side band", "upper edge 1", "upper edge 2")
 
@@ -90,12 +91,12 @@ if __name__ == "__main__":
     b.set(xscale="log", xlabel="interlayer ε", ylabel="model − measured (mV)", title="(b) edge offsets at ΔE_F −70 meV")
     b.legend(fontsize=6.8, frameon=False, ncol=2)
 
-    ramp_eps = [x for x in sorted({k[0] for k in tp if k[1] == dEF})]
-    cols = dict(zip(ramp_eps, RAMP[-len(ramp_eps):] if len(ramp_eps) <= len(RAMP) else RAMP))
+    ramp_eps = sorted({k[0] for k in tp if k[1] == dEF})
+    all_eps = sorted(set(eps) | set(ramp_eps))
+    cols = dict(zip(all_eps, RAMP[-len(all_eps):]))
     for x in eps:
-        if x in cols:
-            d.plot(np.arange(1, 7), 1e3 * np.asarray(sc[(x, dEF)]["U_RG"]), "o-", color=cols[x], lw=1.6, ms=4,
-                   label=f"ε {x:g}")
+        d.plot(np.arange(1, 7), 1e3 * np.asarray(sc[(x, dEF)]["U_RG"]), "o-", color=cols[x], lw=1.6, ms=4,
+               label=f"ε {x:g}")
     d.set(xlabel="layer (1 = top)", ylabel="U − E_F, no tip (meV)", title="(d) (+⁵) layer potentials at ΔE_F −70 meV")
     d.legend(fontsize=6.8, frameon=False)
 

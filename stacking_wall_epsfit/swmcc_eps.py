@@ -1,6 +1,6 @@
 """Interlayer eps sweep for line 514 with the full SWMcC engine tight binding (protocol of swmcc_cells.py).
 
-    python swmcc_eps.py scan            # tip-free (+5) and (+4-) over EPS x DEF: swmcc/scan_*.json
+    python swmcc_eps.py scan [EPS:DEF ...]  # tip-free (+5) and (+4-), default EPS x DEF: swmcc/scan_*.json
     python swmcc_eps.py tip EPS:DEF ... # self-consistent tip sweeps (both stacks) via swmcc_cells.evaluate
     python swmcc_eps.py summary         # tables; ../examples/stacking_wall_swmcc_eps514.json
 
@@ -114,7 +114,8 @@ if __name__ == "__main__":
     os.makedirs(S.OUT, exist_ok=True)
     cmd = sys.argv[1]
     if cmd == "scan":
-        cells = [(e, d) for d in DEF for e in EPS]
+        cells = ([tuple(float(x) for x in a.split(":")) for a in sys.argv[2:]] if len(sys.argv) > 2
+                 else [(e, d) for d in DEF for e in EPS])
         with mp.get_context("spawn").Pool(4) as pool:
             list(pool.imap_unordered(scan, cells))
     elif cmd == "tip":

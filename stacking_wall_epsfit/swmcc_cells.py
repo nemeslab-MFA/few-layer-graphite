@@ -97,6 +97,11 @@ def place(tag, eps, dEF, model, target):
     return nsub
 
 
+def _mv(a):
+    """Feature positions in mV, None where a feature was not found."""
+    return [None if not np.isfinite(x) else int(round(1e3 * x)) for x in np.asarray(a, float)]
+
+
 def evaluate(job):
     tag, eps, dEF, model, stack = job
     path = os.path.join(OUT, key(tag, eps, dEF, model, stack) + ".json")
@@ -151,7 +156,7 @@ def evaluate(job):
     out["seconds"] = time.time() - t0
     json.dump(out, open(path, "w"))
     t, f = out["tip"], out["free"]
-    extra = (f"feats tip {np.round(1e3 * np.asarray(t['features'])).astype(int).tolist()} edges {1e3 * t['edge_rms']:.1f} "
+    extra = (f"feats tip {_mv(t['features'])} edges {1e3 * t['edge_rms']:.1f} "
              f"FB {1e3 * t['fb_err']:+.1f} asym {t['asym']:+.2f} | free edges {1e3 * f['edge_rms']:.1f} asym {f['asym']:+.2f}"
              if stack == "RG" else
              f"min tip {1e3 * t['minimum']:+.0f} free {1e3 * f['minimum']:+.0f} (meas {1e3 * out['measured_min']:+.0f}), "
@@ -171,9 +176,9 @@ def summary():
             t, f = r["tip"], r["free"]
             head = f"  eps {r['eps']:4.1f} dEF {1e3 * r['dEF']:+6.1f} {r['model']:4s} {r['stack']} n_sub {r['nsub'] / 1e13:+.3f}"
             if r["stack"] == "RG":
-                print(head + f" | tip feats {np.round(1e3 * np.asarray(t['features'])).astype(int).tolist()} edges {1e3 * t['edge_rms']:5.1f} "
+                print(head + f" | tip feats {_mv(t['features'])} edges {1e3 * t['edge_rms']:5.1f} "
                       f"FB {1e3 * t['fb_err']:+5.1f} asym {t['asym']:+.2f} res {t['residual']:.2f} | free feats "
-                      f"{np.round(1e3 * np.asarray(f['features'])).astype(int).tolist()} edges {1e3 * f['edge_rms']:5.1f} asym {f['asym']:+.2f} "
+                      f"{_mv(f['features'])} edges {1e3 * f['edge_rms']:5.1f} asym {f['asym']:+.2f} "
                       f"| U-E_F {np.round(1e3 * np.asarray(r['U_minus_mu0'])).astype(int).tolist()}")
             else:
                 print(head + f" | min tip {1e3 * t['minimum']:+4.0f} free {1e3 * f['minimum']:+4.0f} (meas {1e3 * r['measured_min']:+.0f}); "

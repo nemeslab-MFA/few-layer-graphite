@@ -41,8 +41,8 @@ def tip_rows():
         if f.startswith("514_") and f.endswith("_full_RG.json"):
             rg = json.load(open(os.path.join(S.OUT, f)))
             p = os.path.join(S.OUT, f.replace("_RG.json", "_SF.json"))
-            if rg.get("placed") and os.path.exists(p):
-                out[(rg["eps"], rg["dEF"])] = (rg, json.load(open(p)))
+            if rg.get("placed"):
+                out[(rg["eps"], rg["dEF"])] = (rg, json.load(open(p)) if os.path.exists(p) else None)
     return out
 
 
@@ -69,8 +69,25 @@ if __name__ == "__main__":
         if te:
             a.plot(te, [1e3 * tp[(x, dEF)][0]["tip"]["edge_rms"] for x in te], "o", ms=7, color=CAT[i], mec="#fcfcfb",
                    mew=1.5, label=DEF_LAB[dEF] + ", with the tip")
+            te = [x for x in te if tp[(x, dEF)][1]]
             c.plot(te, [1e3 * tp[(x, dEF)][1]["tip"]["minimum"] for x in te], "o", ms=7, color=CAT[i], mec="#fcfcfb",
                    mew=1.5, label=DEF_LAB[dEF] + ", with the tip")
+    # valley: for each eps the Delta E_F (any scanned) with the best tip-free edges, all three edges found
+    best = {}
+    for (x, dd), r in sc.items():
+        if r["RG"]["missing"] == 0 and (x not in best or r["RG"]["edge_rms"] < sc[(x, best[x])]["RG"]["edge_rms"]):
+            best[x] = dd
+    ve = sorted(best)
+    a.plot(ve, [1e3 * sc[(x, best[x])]["RG"]["edge_rms"] for x in ve], "--", color=INK2, lw=1.4,
+           label="best ΔE_F per ε, no tip")
+    for x in ve:
+        a.annotate(f"{1e3 * best[x]:+.0f}", (x, 1e3 * sc[(x, best[x])]["RG"]["edge_rms"]), textcoords="offset points",
+                   xytext=(0, -11), ha="center", fontsize=6.5, color=INK2)
+    vt = [x for x in ve if (x, best[x]) in tp]
+    a.plot(vt, [1e3 * tp[(x, best[x])][0]["tip"]["edge_rms"] for x in vt], "D", ms=6, color=INK2, mec="#fcfcfb",
+           mew=1.2, label="best ΔE_F per ε, with the tip")
+    c.plot(ve, [1e3 * sc[(x, best[x])]["SF"]["minimum"] for x in ve], "--", color=INK2, lw=1.4,
+           label="best (+⁵) ΔE_F per ε, no tip")
     a.set(xscale="log", ylim=(0, 110), xlabel="interlayer ε", ylabel="rms error of the three bulk edges (mV)",
           title="(a) (+⁵) bulk band edges")
     a.legend(fontsize=6.8, frameon=False, ncol=2)

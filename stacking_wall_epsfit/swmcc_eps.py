@@ -1,7 +1,7 @@
 """Interlayer eps sweep for line 514 with the full SWMcC engine tight binding (protocol of swmcc_cells.py).
 
     python swmcc_eps.py scan [EPS:DEF ...]  # tip-free (+5) and (+4-), default EPS x DEF: swmcc/scan_*.json
-    python swmcc_eps.py tip EPS:DEF ... # self-consistent tip sweeps (both stacks) via swmcc_cells.evaluate
+    python swmcc_eps.py tip EPS:DEF[:RG|SF] ...  # self-consistent tip sweeps (default both stacks) via swmcc_cells.evaluate
     python swmcc_eps.py summary         # tables; ../examples/stacking_wall_swmcc_eps514.json
 
 eps -> infinity removes the interlayer Hartree term: every layer at one potential, charge set by the quantum
@@ -119,8 +119,10 @@ if __name__ == "__main__":
         with mp.get_context("spawn").Pool(4) as pool:
             list(pool.imap_unordered(scan, cells))
     elif cmd == "tip":
-        pairs = [tuple(float(x) for x in a.split(":")) for a in sys.argv[2:]]
-        jobs = [(TAG, e, d, MODEL, s) for (e, d) in pairs for s in S.STACKS]
+        jobs = []                                              # EPS:DEF (both stacks) or EPS:DEF:RG / EPS:DEF:SF
+        for a in sys.argv[2:]:
+            e, d, *st = a.split(":")
+            jobs += [(TAG, float(e), float(d), MODEL, s) for s in (st or S.STACKS)]
         with mp.get_context("spawn").Pool(4) as pool:
             list(pool.imap_unordered(S.evaluate, jobs))
     else:

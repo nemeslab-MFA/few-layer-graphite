@@ -7,3 +7,8 @@
   spectrum without the tip has a weak hole-side van Hove maximum near -330 mV that disappears once the tip is in the
   solve (the structure near -215 mV survives, at -222 mV). The same disappearance is seen in the experiments: a sign
   that the measured negative-bias spectrum is shaped by the tip's field.
+- **Interlayer eps below 2.6; no adsorbate doping (user, 2026-11-22).** Explore eps < 2.6 in future fits (eps 2.6 is
+  the current working value; large eps was tried and rejected, `swmcc_eps.py`). The large shifts of the top-layer flat
+  band (-32 / +23 mV in 940 / 514) cannot be explained by adsorbates: there are too few of them and they are mostly
+  normal alkanes. The (+5) spectrum fixes the layer-potential profile, i.e. fixed charge over eps, so a smaller eps
+  needs less charge for the same fit.

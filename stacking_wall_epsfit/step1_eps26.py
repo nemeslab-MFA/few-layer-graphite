@@ -8,7 +8,7 @@ third of the eps 10 one: scan it in 10 meV steps.
 
     python step1_eps26.py scan      # tip-free (+5) and (+4-) over DEF[tag]: swmcc/scan_*.json
     python step1_eps26.py tip [N]   # tip sweeps, both stacks, on the N (default 2) best tip-free cells per line
-    python step1_eps26.py summary   # tables; ../examples/stacking_wall_step1_eps26.json
+    python step1_eps26.py summary   # tables; ../examples/stacking_wall_step1_eps26_full.json
 """
 import json
 import multiprocessing as mp
@@ -132,7 +132,7 @@ def summary():
                       f"free edges {1e3 * rg['free']['edge_rms']:5.1f} | {s}")
                 tips += [{k: v for k, v in x.items() if k != "sweep"} for x in (rg, sf) if x]
         keep[tag] = dict(scan=rows, tip=tips)
-    json.dump(keep, open(os.path.join(REPO, "examples", "stacking_wall_step1_eps26.json"), "w"))
+    json.dump(keep, open(os.path.join(REPO, "examples", "stacking_wall_step1_eps26_full.json"), "w"))
 
 
 if __name__ == "__main__":

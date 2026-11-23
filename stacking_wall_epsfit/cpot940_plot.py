@@ -55,9 +55,11 @@ if __name__ == "__main__":
         ax.set(xlim=lim, xlabel="sample bias (V)")
     t = runs[best]["tip"]
     a.set_ylabel("dI/dV (measured units; model scaled)")
-    a.set_title(f"Line 940 (+⁵): neutral stack (no offset, no substrate charge), ε 2.6, full SWMcC, tip R 20 nm, d 0.7 nm.  "
-                f"Fitted CPot {best:+.3f} eV: features {C.S._mv(t['features'])} mV (measured {C.S._mv(fm)}), "
-                f"asymmetry {t['asym']:+.2f} (measured {runs[best]['measured_asym']:+.2f})", fontsize=8.5, loc="left")
+    fig.suptitle(f"Line 940 (+⁵): neutral stack (no offset, no substrate charge), ε 2.6, full SWMcC, tip R 20 nm, d 0.7 nm; "
+                 f"CPot fitted to the flat band only.  CPot {best:+.3f} eV: features {C.S._mv(t['features'])} mV "
+                 f"(measured {C.S._mv(fm)}), asymmetry {t['asym']:+.2f} (measured {runs[best]['measured_asym']:+.2f})",
+                 fontsize=9, x=0.01, ha="left", color=INK)
+    a.set_title("full spectrum", fontsize=8.5, loc="left")
     a.legend(fontsize=7.5, frameon=False, loc="upper center", ncol=2)
     b.set_title("flat-band region", fontsize=8.5, loc="left")
 
@@ -93,7 +95,7 @@ if __name__ == "__main__":
     e.legend(fontsize=7, frameon=False)
     for ax in (a, b, c, d, e):
         style(ax)
-    fig.tight_layout()
+    fig.tight_layout(rect=(0, 0, 1, 0.97))
     out = os.path.join(REPO, "examples", "stacking_wall_cpot940.png")
     fig.savefig(out, dpi=130)
     print("wrote", out)

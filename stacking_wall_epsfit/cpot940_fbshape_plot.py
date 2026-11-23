@@ -2,7 +2,9 @@
 
 Left: both spectra as computed (same model units, no scaling).  Right: the flat-band region with the no-tip spectrum
 shifted in bias onto the fitted peak and both normalised to their peak height, plus the measured peak treated the same
-way; the half widths at half maximum on the outer (more negative) and inner side quantify the asymmetry."""
+way; the half widths at half maximum on the outer (more negative) and inner side quantify the asymmetry.  The right
+panel uses the 0.25 mV re-evaluation of cpot940_geom_fine.py (same model, d 0.7 nm, R 20 nm), whose half widths are not
+quantised by the 2.5 mV grid."""
 import json
 import os
 import sys
@@ -16,6 +18,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
 import cpot940 as C  # noqa: E402
+import cpot940_geom_fine as GF  # noqa: E402
 import rescore  # noqa: E402
 import step1  # noqa: E402
 
@@ -43,7 +46,12 @@ if __name__ == "__main__":
     F = step1.FINE
     yt, yf = np.asarray(runs[best]["tip"]["didv"]), np.asarray(runs[best]["free"]["didv"])
     Vr, yr = rescore.measured(C.TAG)
-    pt, pf, pm = peak(F, yt), peak(F, yf), peak(Vr, yr)
+    fine = json.load(open(os.path.join(C.OUT, "geom_fine.json")))
+    VF = np.asarray(fine["V"])
+    ytf = np.asarray(next(t for t in fine["tip"] if t["d"] == 0.7 and t["R"] == 20.0)["didv"])
+    yff = np.asarray(fine["free"]["didv"])
+    P = lambda V, y: tuple(GF.peak(V, y)[k] for k in ("v", "height", "floor", "hwhm_out", "hwhm_in"))  # noqa: E731
+    pt, pf, pm = P(VF, ytf), P(VF, yff), P(Vr, yr)
 
     fig, (a, b) = plt.subplots(1, 2, figsize=(15, 6), gridspec_kw=dict(width_ratios=(1.5, 1)))
     a.plot(F, yf, color=MUTED, lw=1.6, ls="--", label="no tip")
@@ -53,17 +61,18 @@ if __name__ == "__main__":
     a.legend(fontsize=8.5, frameon=False)
 
     for lab, V, y, p, col, ls, lw in (("measured", Vr, yr, pm, INK, "-", 1.8),
-                                      ("no tip, shifted by " f"{1e3 * (pt[0] - pf[0]):+.0f} mV", F + (pt[0] - pf[0]), yf, pf, MUTED, "--", 1.6),
-                                      (f"tip, CPot {best:+.3f} eV", F, yt, pt, BLUE, "-", 1.8)):
+                                      (f"no tip, shifted {1e3 * (pt[0] - pf[0]):+.0f} mV", VF + (pt[0] - pf[0]), yff, pf, MUTED, "--", 1.6),
+                                      (f"tip, CPot {best:+.3f} eV", VF, ytf, pt, BLUE, "-", 1.8)):
         x = V - p[0] if lab == "measured" else V - pt[0]
         b.plot(1e3 * x, (y - p[2]) / (p[1] - p[2]), color=col, ls=ls, lw=lw,
-               label=f"{lab}: HWHM outer {1e3 * p[3]:.1f} / inner {1e3 * p[4]:.1f} mV")
+               label=f"{lab}:  {1e3 * p[3]:.1f} / {1e3 * p[4]:.1f}")
     b.axhline(0.5, color=GRID, lw=0.9, zorder=0)
     b.axvline(0, color=GRID, lw=0.9, zorder=0)
-    b.set(xlim=(-110, 80), ylim=(-0.1, 1.08), xlabel="bias from the flat-band peak (mV); negative = outer side, away from E_F",
+    b.set(xlim=(-110, 70), ylim=(-0.1, 1.08), xlabel="bias from the flat-band peak (mV); negative = outer side, away from E_F",
           ylabel="(dI/dV − floor) / peak height")
     b.set_title("flat-band peak, aligned and normalised", fontsize=9.5, loc="left")
-    b.legend(fontsize=8, frameon=False, loc="center right", bbox_to_anchor=(1.0, 0.62))
+    b.legend(fontsize=8, frameon=False, loc="upper left", title="HWHM outer / inner (mV)", title_fontsize=8,
+             alignment="left")
     for ax in (a, b):
         ax.grid(color=GRID, lw=0.6)
         ax.set_axisbelow(True)

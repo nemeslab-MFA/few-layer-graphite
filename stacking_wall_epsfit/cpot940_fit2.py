@@ -129,8 +129,25 @@ def line(r):
           + (f"; {r['seconds']:.0f} s" if "seconds" in r else ""), flush=True)
 
 
+LOW_MAX = {"514": -0.15}     # 514: lower side-band peak searched below -150 mV; for n_sub >= +0.5e13 the filled
+                             # bottom-surface band makes a peak near -90 mV (mirror of the +112 mV peak of 940)
+
+
+def rescored(r):
+    """Feature positions and errors with the line's search windows (only 514 differs from rescore.score)."""
+    if C.TAG not in LOW_MAX:
+        return r
+    import features as FE
+    f = FE.features(step1.FINE, np.asarray(r["didv"]), low_max=LOW_MAX[C.TAG])
+    fm = np.asarray(r["measured_features"])
+    err = np.where(np.isfinite(f), f - fm, np.nan)
+    edges = err[[0, 2, 3]]
+    return dict(r, features=f.tolist(), err=err.tolist(), rms4=float(np.sqrt(np.nanmean(err ** 2))),
+                edge_rms=float(np.sqrt(np.nanmean(edges ** 2))), missing=int(np.sum(~np.isfinite(f))))
+
+
 def rows():
-    return [json.load(open(os.path.join(OUT, f))) for f in sorted(os.listdir(OUT))
+    return [rescored(json.load(open(os.path.join(OUT, f)))) for f in sorted(os.listdir(OUT))
             if f.startswith("sweep_") and f.endswith(".json") and not f.endswith(".ckpt.json")]
 
 

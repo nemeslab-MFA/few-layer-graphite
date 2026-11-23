@@ -6,7 +6,7 @@ from scipy.signal import find_peaks, savgol_filter
 NAMES = ("lower side-band peak", "flat-band peak", "upper side-band edge 1", "upper side-band edge 2")
 
 
-def features(V, y, smooth=0):
+def features(V, y, smooth=0, low_max=None):
     V, y = np.asarray(V, float), np.asarray(y, float)
     ok = np.isfinite(y)
     V, y = V[ok], y[ok]
@@ -17,7 +17,8 @@ def features(V, y, smooth=0):
     sel = (V > -0.12) & (V < 0.06)
     out["flat"] = float(V[sel][np.argmax(y[sel])])
     pk, _ = find_peaks(y, prominence=0.01)
-    low = [i for i in pk if -0.42 < V[i] < out["flat"] - 0.1]
+    hi = out["flat"] - 0.1 if low_max is None else min(out["flat"] - 0.1, low_max)
+    low = [i for i in pk if -0.42 < V[i] < hi]
     out["low_peak"] = float(V[max(low)]) if low else np.nan          # the side-band peak nearest the gap
     d = np.gradient(y, V)
     sel = np.nonzero((V > 0.1) & (V < 0.42))[0]

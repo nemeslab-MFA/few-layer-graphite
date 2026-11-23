@@ -12,6 +12,7 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
 sys.path.insert(0, HERE)
+import cpot940 as C  # noqa: E402
 import cpot940_fit2 as F2  # noqa: E402
 import rescore  # noqa: E402
 import step1  # noqa: E402
@@ -43,7 +44,7 @@ if __name__ == "__main__":
                          "axes.labelcolor": INK, "xtick.color": INK2, "ytick.color": INK2})
     val, allr = valley_rows()
     best = min(allr.values(), key=lambda r: r["rms4"])
-    Vr, yr = rescore.measured("940")
+    Vr, yr = rescore.measured(C.TAG)
     fm = 1e3 * np.asarray(best["measured_features"])
     FINE = step1.FINE
     ramp = ["#c5ddf7", "#9cc3f0", "#6fa6e8", "#3987e5", "#2a78d6", "#1c5cab", "#184f95", "#0d366b", "#081f40"]
@@ -87,19 +88,20 @@ if __name__ == "__main__":
     style(c)
 
     d = fig.add_subplot(gs[1, 1])
-    off = sorted([r for (cc, n), r in allr.items() if n == -0.5], key=lambda r: r["cpot"])
+    off = sorted([r for (cc, n), r in allr.items() if n == round(best["nsub"] / 1e13, 4)], key=lambda r: r["cpot"])
     for i in (0, 1, 3):
         d.plot([r["cpot"] for r in off], [1e3 * r["err"][i] for r in off], marker=MARK[i],
                color=INK2 if i != 1 else MUTED, lw=1.3, ms=5, label=NAMES[i])
     d.plot([r["cpot"] for r in off], [1e3 * r["rms4"] for r in off], color=BLUE, lw=2.0, label="rms of the four")
     d.axhline(0, color=INK, lw=0.9, ls=":")
-    d.set(xlabel="CPot (eV)", ylabel="model − measured (mV)", title="CPot across the valley at n_sub = −0.5 × 10¹³")
+    d.set(xlabel="CPot (eV)", ylabel="model − measured (mV)",
+          title=f"CPot across the valley at n_sub = {best['nsub'] / 1e13:+.3g} × 10¹³")
     d.title.set_fontsize(8.5)
     d.legend(fontsize=7.5, frameon=False)
     style(d)
 
     e = fig.add_subplot(gs[1, 2])
-    zero = allr[min((k for k in allr if k[1] == 0.0), key=lambda k: abs(k[0] + 0.366))]
+    zero = allr[min((k for k in allr if k[1] == 0.0), key=lambda k: abs(k[0] - [r["cpot"] for r in val if r["nsub"] == 0][0]))]
     e.plot(Vr[w], yr[w], color=INK, lw=1.9, label="measured")
     e.plot(FINE, np.asarray(zero["didv"]) * zero["scale"], color=ORANGE, lw=1.3,
            label=f"CPot only: {zero['cpot']:+.3f} eV, n_sub 0  (rms {1e3 * zero['rms4']:.0f} mV)")
@@ -113,8 +115,8 @@ if __name__ == "__main__":
     e.legend(fontsize=7, frameon=False, loc="upper center")
     style(e)
 
-    fig.suptitle("Line 940 (+⁵): CPot and substrate charge fitted to the four peak positions (shapes ignored); neutral "
+    fig.suptitle(f"Line {C.TAG} (+⁵): CPot and substrate charge fitted to the four peak positions (shapes ignored); neutral "
                  "stack, ε 2.6, full SWMcC, R 20 nm, d 0.7 nm", fontsize=10, x=0.01, ha="left")
-    out = os.path.join(REPO, "examples", "stacking_wall_cpot940_fit2.png")
+    out = os.path.join(REPO, "examples", f"stacking_wall_cpot{C.TAG}_fit2.png")
     fig.savefig(out, dpi=140, bbox_inches="tight")
     print("wrote", out, "best", best["cpot"], best["nsub"], best["rms4"])

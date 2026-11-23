@@ -12,3 +12,8 @@
   band (-32 / +23 mV in 940 / 514) cannot be explained by adsorbates: there are too few of them and they are mostly
   normal alkanes. The (+5) spectrum fixes the layer-potential profile, i.e. fixed charge over eps, so a smaller eps
   needs less charge for the same fit.
+- **Substrate charge spread over the whole SiO2 (user, 2026-11-23).** To do: check what happens when the fixed oxide
+  charge n_sub is distributed uniformly over the full 90 nm SiO2 instead of the 2 nm trap layer under the stack
+  (`swmcc_cells.build`: `Layer(step1.TRAP, SIO2, fixed_charge=nsub / (TRAP * 1e-7))`). With the grounded gate 90 nm
+  below, a uniform charge induces only about half of n_sub in the stack (the gate takes the rest), and its field
+  reaches the stack from farther away; compare the CPot-n_sub fit (`cpot940_fit2.py`) at the same induced charge.

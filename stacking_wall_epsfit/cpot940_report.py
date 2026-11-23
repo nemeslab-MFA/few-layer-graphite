@@ -176,7 +176,7 @@ def build():
             parts.append(f"d {d:g} nm: peak {mv(1e3 * q['v'], 1)} mV (25 mV sweep: {mv(1e3 * p['v'], 1)}), ratio "
                          f"{num(q['ratio'])} ({num(p['ratio'])})")
         dense_txt = ("Sweep-grid check: re-solving with 5 mV bias steps from −120 to +20 mV gives " + "; ".join(parts)
-                     + ".")
+                     + ". The 25 mV sweep grid is converged for the peak position and shape.")
     else:
         dense_txt = ("Sweep-grid check (pending): the d 0.7 and 0.4 nm sweeps are being re-solved with 5 mV bias steps "
                      "across the flat band, to test the PCHIP interpolation of the apex potential between the 25 mV "

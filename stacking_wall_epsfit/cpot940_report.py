@@ -55,6 +55,7 @@ tr.meas td { color: var(--accent); font-weight: 600; }
 figure { margin: 1.2rem 0 0.4rem; min-width: 0; }
 figure img { width: 100%; max-width: 100%; height: auto; display: block; border: 1px solid var(--rule); background: #fff; }
 figcaption { font-family: var(--sans); font-size: 0.85rem; color: var(--muted); margin-top: 0.45rem; max-width: 80ch; }
+figcaption b { color: var(--fg); font-weight: 600; }
 ul, ol { max-width: 62ch; padding-left: 1.2rem; margin: 0.5rem 0; }
 li { margin: 0.3rem 0; }
 code { font-family: var(--mono); font-size: 0.85em; }
@@ -68,10 +69,22 @@ FONTS = ('<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=
          '&family=Source+Serif+4:ital,wght@0,400;1,400&family=IBM+Plex+Mono&display=swap">')
 
 
+TITLES = {"stacking_wall_cpot940.png": "Contact-potential fit",
+          "stacking_wall_cpot940_offset.png": "Spectra compared: no tip, CPot 0, fit, measurement",
+          "stacking_wall_cpot940_fbshape.png": "Shape of the flat-band peak",
+          "stacking_wall_cpot940_geom.png": "Tip distance and apex radius",
+          "stacking_wall_cpot940_tibb_sketch.png": "Why only the occupied side moves",
+          "stacking_wall_cpot940_bands.png": "Band structure under the apex",
+          "stacking_wall_cpot940_nsub.png": "Substrate charge at the fitted tip"}
+FIGNO = {}
+
+
 def img(name, alt, caption):
+    FIGNO.setdefault(name, len(FIGNO) + 1)
+    k = FIGNO[name]
     b = base64.b64encode(open(os.path.join(EX, name), "rb").read()).decode()
-    return (f'<figure><img src="data:image/png;base64,{b}" alt="{alt}" loading="lazy">'
-            f'<figcaption>{caption}</figcaption></figure>')
+    return (f'<figure id="fig{k}"><img src="data:image/png;base64,{b}" alt="Figure {k}: {alt}" loading="lazy">'
+            f'<figcaption><b>Figure {k} · {TITLES.get(name, alt)}.</b> {caption}</figcaption></figure>')
 
 
 def mv(x, nd=0):

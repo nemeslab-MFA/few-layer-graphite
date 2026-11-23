@@ -30,7 +30,7 @@ import swmcc_cells as S  # noqa: E402
 TAG, EPS, MODEL = "940", 2.6, "full"
 SIG = step1.SIGMA[TAG]
 SPEC = dict(modulation=0.00375, barrier=4.6, separation=step1.TIP["separation"], broadening=SIG, temperature=9.0)
-E = np.arange(-0.15, 0.10 + 1e-9, 0.0005)
+E = np.arange(-0.30, 0.10 + 1e-9, 0.0005)
 
 
 def sample():
@@ -67,7 +67,7 @@ def place():
               f"{np.round(1e3 * U).astype(int).tolist()}", flush=True)
         return fb - vfb
 
-    lo, hi = -1.5, 0.0                                              # f(lo) < 0 < f(hi) expected
+    lo, hi = -0.8, 0.0                                              # f(lo) < 0 < f(hi) expected
     flo, fhi = f(lo), f(hi)
     if not flo < 0 < fhi:
         raise SystemExit(f"bracket failed: f({lo}) = {flo}, f({hi}) = {fhi}")

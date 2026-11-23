@@ -7,7 +7,7 @@ Stage 1 (valley): for each n_sub, the CPot that puts the apex flat band at the m
 regula falsi).  Stage 2: full bias sweeps on a 16-point grid at the valley points -> features -> rms.  Stage 3: local
 points chosen from stage 2 (``point CPOT:NSUB``).
 
-    python cpot940_fit2.py valley            # stages 1 and 2 (4 processes)
+    python cpot940_fit2.py valley [N ...]    # stages 1 and 2 (4 processes); N in 1e13 cm^-2, default NSUB
     python cpot940_fit2.py point C:N [...]   # extra full sweeps
     python cpot940_fit2.py summary           # table; ../examples/stacking_wall_cpot940_fit2.json
 """
@@ -148,9 +148,9 @@ def summary():
               open(os.path.join(REPO, "examples", "stacking_wall_cpot940_fit2.json"), "w"))
 
 
-def valley():
+def valley(nsub=NSUB):
     with mp.get_context("spawn").Pool(4) as pool:
-        placed = pool.map(place, NSUB)
+        placed = pool.map(place, nsub)
         jobs = [(p["cpot"], p["nsub"]) for p in placed if p["cpot"] is not None]
         for p in placed:
             if p["cpot"] is None:
@@ -163,7 +163,7 @@ if __name__ == "__main__":
         os.environ[v] = "1"
     os.makedirs(OUT, exist_ok=True)
     if sys.argv[1] == "valley":
-        valley()
+        valley(tuple(float(a) * 1e13 for a in sys.argv[2:]) or NSUB)
     elif sys.argv[1] == "point":
         pts = [tuple(float(x) for x in a.split(":")) for a in sys.argv[2:]]
         with mp.get_context("spawn").Pool(min(4, len(pts))) as pool:

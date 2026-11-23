@@ -17,3 +17,9 @@
   (-0.989e13 cm^-2 total, 1.1e18 cm^-3) the tip-free layer potentials equal the best fit's to < 0.01 meV, so the fit
   (CPot -0.615 eV, 4.9e12 holes induced) is unchanged. The spectra fix the induced charge, not its location. The 2 nm
   layer (top face of the SiO2, under the flake) is the physical choice; 1e18 cm^-3 in bulk thermal oxide is not.
+
+## Where the CPot / substrate-charge work lives (2026-11-23)
+
+The contact-potential and SiO2-charge fits of the (+5) spectra (`cpot940*.py`, `cpot_*.py`, report
+https://claude.ai/artifact/5WR8CVJudxP7cNxKEdGE3u) moved to the bandbending repository, `examples/kandrai2026_rg_tip_gating/`
+(branch `lateral-solver`), which is their home from now on. Continue that work there.

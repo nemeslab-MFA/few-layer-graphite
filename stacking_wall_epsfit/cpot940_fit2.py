@@ -116,7 +116,7 @@ def sweep(cn):
     err = np.asarray(s["err"], dtype=float)
     out = dict(cpot=c, nsub=n, failures=len(m.failures), sweep=swt.sweep_arrays(m), measured_features=fm.tolist(),
                didv=y.tolist(), scale=sc, residual=res, rms4=float(np.sqrt(np.nanmean(err ** 2))),
-               missing=int(np.sum(~np.isfinite(err))), seconds=time.time() - t0, **s)
+               seconds=time.time() - t0, **s)                    # s carries 'missing' (features not found)
     json.dump(out, open(path, "w"))
     line(out)
     return out

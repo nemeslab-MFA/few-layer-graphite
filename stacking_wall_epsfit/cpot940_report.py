@@ -112,8 +112,36 @@ def data():
     return pl, runs, fine, geom, dense
 
 
+def nsub_rows(v=-0.0324):
+    """Substrate-charge sweep: flat band with and without the tip, top-layer lever arm and the quantum capacitance
+    e^2 D_l(E_F) (uF/cm^2, Gaussian sigma of the model) of L1, L2 and L6 under the apex at the flat-band bias."""
+    import cpot940_nsub as NS
+    from scipy.interpolate import PchipInterpolator
+    tb = C.S.tipfree(C.TAG, C.EPS, 0.0, 0.0, C.MODEL, "RG")["p"].tb
+    out = []
+    for r in sorted(NS.rows(), key=lambda r: r["nsub"]):
+        sw = r["sweep"]
+        P = PchipInterpolator(np.asarray(sw["bias"]), np.asarray(sw["U0"]), axis=0)
+        U = P(v)
+        Eg = sw["mu0"] + np.arange(-0.2, 0.2 + 1e-9, 5e-4)
+        _, D = tb.ldos(np.asarray(U), Eg, broadening=C.SIG, resolve="layer")
+        D = np.asarray(D)
+        D = D if D.shape[0] == Eg.size else D.T
+        cq = 1.602e-13 * D[Eg.size // 2]
+        out.append(dict(n=r["nsub"] / 1e13, fb_free=1e3 * r["free"]["peak"]["v"], fb_tip=1e3 * r["tip"]["peak"]["v"],
+                        alpha=float(P.derivative()(v)[0]), cq=cq, U1=1e3 * (U[0] - sw["mu0"]), feats=r["tip"]["features"],
+                        U6=1e3 * (U[-1] - sw["mu0"])))
+    return out
+
+
 def build():
     pl, runs, fine, geom, dense = data()
+    ns = nsub_rows()
+    ns_rows = [[f"{q['n']:+.1f}".replace("-", "−"), mv(q["fb_free"]), mv(q["fb_tip"]), num(q["alpha"]),
+                num(q["cq"][0], 1), num(q["cq"][1], 1), num(q["cq"][5], 1), f"{mv(q['U1'])} / {mv(q['U6'])}"]
+               for q in ns if q["n"] in (-2.0, -1.0, -0.5, 0.0, 0.5, 1.0, 2.0)]
+    nsd = {round(q["n"], 1): q for q in ns}
+    nsub_edges = nsd[-0.5]["feats"][2:4]
     best = min(runs, key=lambda c: abs(c - pl["cpot"]))
     fm = np.asarray(runs[best]["measured_features"]) * 1e3
     fp = {(t["d"], t["R"]): t["peak"] for t in fine["tip"]}
@@ -213,6 +241,10 @@ bias to 0.05 near V₀.</li>
 <li><b>Not explained by the tip:</b> the upper bulk edges ({mv(1e3 * t['features'][2])} / {mv(1e3 * t['features'][3])}
 mV against {mv(fm[2])} / {mv(fm[3])} mV measured), the {abs(1e3 * t['features'][0] - fm[0]):.0f} mV overshoot of the
 lower bulk edge, and the outer tail of the flat-band peak.</li>
+<li><b>Substrate charge acts through the tip's lever arm.</b> At the fitted tip, positive trap charge (electrons in the
+stack) raises the lever arm to {num(nsd[2.0]['alpha'])} and pulls the flat band to {mv(nsd[2.0]['fb_tip'])} mV;
+negative trap charge pins it near E<sub>F</sub> (α ≈ {num(nsd[-0.5]['alpha'])}). The measured −32 mV needs
+n<sub>sub</sub> ≈ 0.</li>
 </ol>
 
 <h2>Hypothesis and model</h2>
@@ -347,12 +379,43 @@ drops to −39 meV at K (100 % on L1, maximum −25 meV), fully below E<sub>F</s
 <li>At +355 mV the potentials under the apex equal the no-tip ones within 1 meV: the bands are those without the tip.</li>
 </ul>
 
-<h2>6 · Open points and next steps</h2>
+<h2>6 · Substrate charge at the fitted tip</h2>
+<p>Tip fixed (CPot {num(best, 3)} eV, R 20 nm, d 0.7 nm); fixed sheet charge n<sub>sub</sub> in the 2 nm trap layer
+from −2 to +2 × 10¹³ e/cm² (positive charge induces electrons in the stack). ±3 × 10¹³ would put L6 at the 0.5 eV edge of
+the tight-binding window.</p>
+{img("stacking_wall_cpot940_nsub.png", "Substrate-charge sweep at the fitted tip",
+     "Top: top-layer dI/dV under the tip for each n<sub>sub</sub> (10¹³ e/cm²), offset, with the measured spectrum; "
+     "layer potentials under the apex at −32 mV. Bottom: flat-band region overlaid; flat-band position with and "
+     "without the tip; top-layer lever arm at −32 mV.")}
+{table(["n_sub (10¹³ e/cm²)", "flat band, no tip (mV)", "flat band, tip (mV)", "lever arm α", "C_q L1", "C_q L2",
+        "C_q L6", "U₁ / U₆ − E_F (meV)"], ns_rows,
+       ["hl" if r[0] == "+0.0" else "" for r in ns_rows], numeric=set(range(8)))}
+<p>C<sub>q</sub> = e²D<sub>l</sub>(E<sub>F</sub>) under the apex at −32 mV, in µF/cm²; compare C<sub>gap</sub> ≈
+ε₀/d ≈ 1.3 µF/cm² and C₁₂ = ε₀·2.6/0.335 nm = 6.9 µF/cm², which cap α at 0.155 while L2 screens.</p>
+<ul>
+<li>Without the tip the substrate charge hardly reaches the top layer: the flat band stays between
+{mv(min(q['fb_free'] for q in ns))} and {mv(max(q['fb_free'] for q in ns))} mV.</li>
+<li>The lever arm depends on which surface band holds E<sub>F</sub> under the apex. At n<sub>sub</sub> = 0 the tip
+fills the top band and the bottom band holds E<sub>F</sub> (C<sub>q</sub> of L6 {num(nsd[0.0]['cq'][5], 1)}):
+α = {num(nsd[0.0]['alpha'])}.</li>
+<li>Negative n<sub>sub</sub> (holes) empties the bottom band; the top band is left to hold E<sub>F</sub> and screens the
+tip itself (C<sub>q</sub> of L1 8–16): α {num(nsd[-0.5]['alpha'])}–{num(nsd[-2.0]['alpha'])}, flat band pinned at −12 to
+−22 mV.</li>
+<li>Positive n<sub>sub</sub> (electrons) fills the bottom band; with the tip pulling the top layers down, L1 and L2
+have almost no states at E<sub>F</sub> and the field penetrates past L2: α rises to {num(nsd[2.0]['alpha'])}.</li>
+<li>The asymmetry follows from the fixed sign of the tip field at this CPot, which pulls electrons to the top. It would
+reverse for CPot &gt; 0 or above V₀.</li>
+</ul>
+
+<h2>7 · Open points and next steps</h2>
 <ul>
 <li><b>Upper bulk edges.</b> The field vanishes there, so no tip setting moves them. Their 15–27 mV deficit belongs
 to the band structure or the potential profile of the stack.</li>
 <li><b>Lower edge and outer tail.</b> The lower edge prefers a weaker tip than the flat band does, and the measured
 outer tail of the flat band is absent from every tip setting.</li>
+<li><b>Fit CPot and n<sub>sub</sub> together</b> over n<sub>sub</sub> = 0 to −0.5 × 10¹³: at −0.5 the upper edges move
+to {mv(1e3 * nsub_edges[0])} / {mv(1e3 * nsub_edges[1])} mV (measured {mv(fm[2])} / {mv(fm[3])}), but the flat band
+rises to {mv(nsd[-0.5]['fb_tip'])} mV and needs a more negative CPot.</li>
 <li><b>Separate lever arm from position.</b> Refit CPot at d 0.4, 0.5 and 1.0 nm with the flat band held at −32 mV
 and compare the half-width ratio and the lower edge.</li>
 <li><b>Interlayer ε below 2.6</b> (noted 22 November): a smaller ε raises the lever arm per unit field.</li>

@@ -69,10 +69,12 @@ if __name__ == "__main__":
     for r in rs:
         sw = r["sweep"]
         P = PchipInterpolator(np.asarray(sw["bias"]), np.asarray(sw["U0"]), axis=0)
-        e.plot(L, 1e3 * (P(V_FB) - sw["mu0"]), "o-", color=colour(r["nsub"]), lw=1.4, ms=3.5)
+        e.plot(L, 1e3 * (P(V_FB) - sw["mu0"]), "o-", color=colour(r["nsub"]), lw=1.4, ms=3.5,
+               label=f"{r['nsub'] / 1e13:+.1f}")
     e.set(xticks=L, xlabel="layer (1 = top, faces the tip)", ylabel="U_l − E_F under the apex (meV)",
           title=f"layer potentials with the tip, V = {1e3 * V_FB:+.0f} mV")
     e.title.set_fontsize(8.5)
+    e.legend(fontsize=7, frameon=False, loc="upper left", ncol=2, title="n_sub (10¹³ e/cm²)", title_fontsize=7.5)
     style(e)
 
     # flat-band region, overlaid
@@ -101,14 +103,15 @@ if __name__ == "__main__":
     style(c)
 
     d = fig.add_subplot(gs[1, 2])
-    names = ("lower bulk edge", "flat band", "upper edge 1", "upper edge 2")
-    for i, mk in ((0, "v"), (2, "^"), (3, "s")):
-        d.plot(x, [1e3 * r["tip"]["features"][i] - fm[i] if r["tip"]["features"][i] is not None else np.nan
-                   for r in rs], marker=mk, color=INK2, lw=1.4, ms=5, label=names[i])
-    d.axhline(0, color=INK, lw=1.0, ls=":")
-    d.set(xlabel="n_sub (10¹³ e/cm²)", ylabel="model − measured (mV)", title="bulk edges with the tip, error")
+    alpha = []
+    for r in rs:
+        sw = r["sweep"]
+        P = PchipInterpolator(np.asarray(sw["bias"]), np.asarray(sw["U0"])[:, 0])
+        alpha.append(float(P.derivative()(V_FB)))
+    d.plot(x, alpha, "o-", color=INK2, lw=1.6, ms=4.5)
+    d.set(xlabel="n_sub (10¹³ e/cm²)", ylabel="dU₁/d(eV) at V = −32 mV",
+          title="lever arm of the top layer under the apex")
     d.title.set_fontsize(8.5)
-    d.legend(fontsize=7.5, frameon=False)
     style(d)
 
     fig.suptitle("Line 940 (+⁵): substrate-charge sweep at the fitted tip (CPot −0.367 eV, R 20 nm, d 0.7 nm); neutral "

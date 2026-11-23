@@ -83,7 +83,10 @@ TITLES = {"stacking_wall_cpot940.png": "Contact-potential fit",
           "stacking_wall_cpot940_nsub.png": "Substrate charge at the fitted tip",
           "stacking_wall_cpot940_fit2.png": "Two-parameter fit of CPot and substrate charge",
           "stacking_wall_cpot940_fit2_bands.png": "Band structure at the best fit",
-          "stacking_wall_cpot940_fit2_kp.png": "The paper's SWMcC k·p model with the best-fit on-site energies"}
+          "stacking_wall_cpot940_fit2_kp.png": "The paper's SWMcC k·p model with the best-fit on-site energies",
+          "stacking_wall_cpot514_offset.png": "Line 514: contact potential alone",
+          "stacking_wall_cpot514_fit2.png": "Line 514: two-parameter fit of CPot and substrate charge",
+          "stacking_wall_bestfits.png": "Best fits of lines 940 and 514"}
 FIGNO = {}
 
 
@@ -225,6 +228,28 @@ def build():
     s514 = json.load(open(os.path.join(REPO, "examples", "stacking_wall_cpot514_fit2.json")))
     b514 = min(s514["sweeps"], key=lambda r: r["rms4"])
     c514_only = json.load(open(os.path.join(HERE, "cpot514", "place.json")))["cpot"]
+    r514 = {round(r["cpot"], 3): r for r in json.load(open(os.path.join(REPO, "examples", "stacking_wall_cpot514.json")))["runs"]}
+    fm514 = 1e3 * np.asarray(r514[0.0]["measured_features"])
+    only514 = r514[round(c514_only, 3)]
+    rows514a = [["measured", *(mv(x) for x in fm514)],
+                ["no tip", *(mv(1e3 * x) for x in only514["free"]["features"])],
+                ["CPot 0", *(mv(1e3 * x) for x in r514[0.0]["tip"]["features"])],
+                [f"CPot {mv(c514_only, 3)} eV (fit)", *(mv(1e3 * x) for x in only514["tip"]["features"])]]
+    sw514 = sorted(s514["sweeps"], key=lambda r: (r["nsub"], r["cpot"]))
+    val514 = {round(p_["nsub"] / 1e13, 4): p_["cpot"] for p_ in s514["valley"] if p_.get("cpot") is not None}
+    rows514b, cls514b = [], []
+    for r in sw514:
+        n = round(r["nsub"] / 1e13, 4)
+        on = n in val514 and abs(val514[n] - r["cpot"]) < 1e-4
+        rows514b.append(["0" if n == 0 else f"{n:+.3g}".replace("-", "−"), mv(r["cpot"], 3), "valley" if on else "off valley",
+                         *(mv(1e3 * v) for v in r["features"]), num(1e3 * r["rms4"], 1)])
+        cls514b.append("hl" if r is b514 else "")
+    rows514b.append(["measured", "", "", *(mv(x) for x in fm514), ""])
+    cls514b.append("meas")
+    bf = json.load(open(os.path.join(REPO, "examples", "stacking_wall_bestfits.json")))
+    bf_rows = [[f"line {t}", mv(bf[t]["cpot"], 3), num(bf[t]["w_tip"], 2), f"{bf[t]['nsub'] / 1e13:+.3g}".replace("-", "−"),
+                f"{bf[t]['carriers'] / 1e12:.1f} × 10¹² " + ("holes" if bf[t]["nsub"] < 0 else "electrons"),
+                num(bf[t]["rms"], 1)] for t in ("940", "514")]
     ox_dU = 1e3 * float(np.max(np.abs(np.asarray(ox["equivalent"]["U"]) - np.asarray(ox["trap"]["U"]))))
     f2_off = sorted([r for k, r in f2_all.items() if k[1] == round(f2_best["nsub"] / 1e13, 4)], key=lambda r: r["cpot"])
     pk_fit, pk_free, pk_meas = fp[(0.7, 20.0)], fine["free"]["peak"], fine["measured"]
@@ -300,7 +325,7 @@ def build():
 {FONTS}
 {STYLE}
 <main>
-<div class="eyebrow">Six-layer rhombohedral graphite · line 940, (+⁵) side · 23 November 2026</div>
+<div class="eyebrow">Six-layer rhombohedral graphite · lines 940 and 514, (+⁵) side · 23 November 2026</div>
 <h1>The tip sets the flat band in line 940</h1>
 <div class="abstract"><span class="label">Abstract</span>
 <p>Throughout, “top” means the graphene layer next to the tip (L1) and “bottom” the layer on the SiO₂ (L6). The top-layer flat band of the (+⁵) spectrum in line 940 sits at −32 mV. A neutral six-layer stack with the tip
@@ -317,7 +342,10 @@ difference separates the two parameters. Fitting CPot and n<sub>sub</sub> to the
 {num(f2_best['cpot'], 3)} eV, i.e. a tip work function W<sub>tip</sub> ≈ {num(4.6 + f2_best['cpot'], 2)} eV for
 W<sub>RG</sub> ≈ 4.6 eV (an effective value, tied to d = 0.7 nm), and n<sub>sub</sub> =
 {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻² (holes); the rms position error drops from {1e3 * f2_zero['rms4']:.0f} to {1e3 * f2_best['rms4']:.1f} mV. The fit also reproduces a weak
-peak at small positive bias: the bottom-surface flat band, emptied by the hole doping.</p></div>
+peak at small positive bias: the bottom-surface flat band, emptied by the hole doping. Line 514, fitted the same
+way, is the mirror image: its flat band at +23 mV needs CPot {mv(b514['cpot'], 3)} eV (W<sub>tip</sub> ≈
+{num(4.6 + b514['cpot'], 2)} eV) and electron-inducing substrate charge ({mv(b514['nsub'] / 1e13, 3)} × 10¹³ cm⁻²),
+rms {1e3 * b514['rms4']:.1f} mV (section 8; both fits side by side in section 12).</p></div>
 
 <ol class="findings">
 <li><b>One parameter places the flat band.</b> CPot = W<sub>tip</sub> − W<sub>RG</sub> = {num(best, 3)} eV puts the
@@ -580,7 +608,44 @@ the dI/dV.</li>
 |k − K| ≤ 0.3 nm⁻¹ (16 meV at 0.8 nm⁻¹, where the linearised structure factor departs from the full one).</li>
 </ul>
 
-<h2>8 · Where the oxide charge sits</h2>
+<h2>8 · Line 514</h2>
+<p>Same model and method as for 940 (neutral stack, ε 2.6, full SWMcC, R 20 nm, d 0.7 nm), with σ 13.7 meV. Measured
+(+⁵) peaks: {", ".join(mv(x) for x in fm514)} mV (lower bulk edge, flat band, upper edges 1 and 2).</p>
+<h3>Contact potential alone</h3>
+{img("stacking_wall_cpot514_offset.png", "Line 514: measured, CPot-only fit, CPot 0 and no tip",
+     "Line 514 (+⁵): measurement, CPot-only fit, CPot 0 and no tip, offset vertically; grey lines mark the measured "
+     "peaks.")}
+{table(["spectrum", "lower bulk edge", "flat band", "upper edge 1", "upper edge 2"], rows514a, ["meas", "", "", "hl"],
+       numeric={1, 2, 3, 4})}
+<ul>
+<li>The flat band at +23 mV needs a positive contact potential: CPot {mv(c514_only, 3)} eV, W<sub>tip</sub> ≈
+{num(4.6 + c514_only, 2)} eV, a tip with a higher work function than the graphite.</li>
+<li>The roles of the two sides swap. The tip field vanishes near V₀ ≈ {mv(-c514_only, 2)} V, so the tip barely moves
+the lower edge, which stays 31 mV too shallow, and pushes the upper edges above the measured ones.</li>
+</ul>
+<h3>Two-parameter fit</h3>
+{img("stacking_wall_cpot514_fit2.png", "Line 514: two-parameter fit of CPot and substrate charge",
+     "Line 514: spectra along the flat-band valley; CPot along the valley; peak-position errors along the valley; "
+     "errors across the valley at the best n<sub>sub</sub>; best fit and CPot-only fit against the measurement.")}
+{table(["n_sub (10¹³)", "CPot (eV)", "point", "lower edge", "flat band", "upper edge 1", "upper edge 2", "rms (mV)"],
+       rows514b, cls514b, numeric={0, 1, 3, 4, 5, 6, 7})}
+<ul>
+<li><b>Electrons, not holes.</b> All three bulk edges must move down, which needs electron-inducing substrate charge,
+the opposite sign to 940. Along the flat-band valley the CPot rises steeply above +0.25 × 10¹³ (electron pinning of the
+top band), the mirror of 940.</li>
+<li><b>The lower edge follows the substrate.</b> It reaches the measured position at +0.44 × 10¹³. The upper edges
+stay at 265–268 / 382–390 mV along the valley: the substrate pulls them down and the larger CPot pushes them back up.</li>
+<li><b>Best fit off the valley.</b> Lowering CPot pulls the upper edges down while the pinned flat band moves only
+about 2.5 mV per 0.03 eV. The best fit, CPot {mv(b514['cpot'], 3)} eV and n<sub>sub</sub>
+{mv(b514['nsub'] / 1e13, 3)} × 10¹³ cm⁻², has rms {1e3 * b514['rms4']:.1f} mV with the flat band 8 mV low; with the
+flat band held exactly, the best is 14.2 mV.</li>
+<li><b>Limit.</b> The model puts the two upper edges 120–126 mV apart, against 105 mV measured; the second edge stays
++17 mV high, as in 940.</li>
+<li>For n<sub>sub</sub> ≥ +0.5 × 10¹³ the filled bottom-surface band makes a peak near −90 mV, the mirror of the
++112 mV peak of 940. The lower side-band peak of 514 is therefore searched below −150 mV.</li>
+</ul>
+
+<h2>9 · Where the oxide charge sits</h2>
 <p>The fits put the fixed charge in a 2 nm layer of SiO₂ under the stack. The same calculation with the charge spread
 uniformly over the whole 90 nm oxide (tip-free solves, same mesh):</p>
 {table(["oxide charge", "total (cm⁻²)", "induced in the stack", "holes in the stack (cm⁻²)"], ox_rows, ["hl", "", ""],
@@ -618,7 +683,7 @@ gate voltage of a few tenths of a volt, again ~10¹¹ cm⁻². Neither matters a
 volts on the gate do.</li>
 </ul>
 
-<h2>9 · Why the tip work function is low: alkanes at the apex</h2>
+<h2>10 · Why the tip work function is low: alkanes at the apex</h2>
 <p>The fits give W<sub>tip</sub> ≈ {num(4.6 + best, 2)} eV (CPot only) and {num(4.6 + f2_best['cpot'], 2)} eV (with
 substrate charge) for W<sub>RG</sub> ≈ 4.6 eV, well below clean Pt or PtIr (5.3–5.65 eV, CPot +0.7 to +1.05 eV).
 Line 514, fitted the same way, needs CPot {mv(c514_only, 3)} eV alone and {mv(b514['cpot'], 3)} eV with
@@ -651,7 +716,7 @@ metal-surface data. A test: track the flat-band position together with the appar
 before and after tip pulses.</li>
 </ul>
 
-<h2>10 · Open points and next steps</h2>
+<h2>11 · Open points and next steps</h2>
 <ul>
 <li><b>Upper bulk edges.</b> The field vanishes there, so no tip setting moves them. Their 15–27 mV deficit belongs
 to the band structure or the potential profile of the stack.</li>
@@ -665,19 +730,29 @@ it.</li>
 <li><b>Separate lever arm from position.</b> Refit CPot at d 0.4, 0.5 and 1.0 nm with the flat band held at −32 mV
 and compare the half-width ratio and the lower edge.</li>
 <li><b>Interlayer ε below 2.6</b> (noted 22 November): a smaller ε raises the lever arm per unit field.</li>
-<li><b>Line 514 (+⁵).</b> Its flat band sits at +23 mV; in this model that needs CPot &gt; 0, i.e. a tip with a larger
-work function than the sample at the time of that measurement.</li>
+<li><b>Two lines, two substrate charges.</b> The best fits need holes under 940 and electrons under 514. Check whether
+the two lines lie on the same flake and how far apart: a spatially varying oxide charge or two different flakes.</li>
 <li><b>Experimental test.</b> A tip-height (setpoint) series at one tip state should move the flat band (about
 {abs(d_slope) / 10:.0f} mV per 0.1 nm) and the lower edge, and leave the +0.27 and +0.37 V features in place. Features
 above V₀ ≈ +0.37 V should shift slightly outward.</li>
 </ul>
+
+<h2>12 · Best fits of both lines</h2>
+{img("stacking_wall_bestfits.png", "Best fits of lines 940 and 514 side by side",
+     "Best two-parameter fits (CPot, n<sub>sub</sub>) of the (+⁵) spectra of lines 940 and 514 against the "
+     "measurement, with the fitted parameters and the tip work function they imply for W<sub>RG</sub> = 4.6 eV. Ticks "
+     "at the top: measured (black) and model (blue) peak positions.")}
+{table(["", "CPot (eV)", "W_tip (eV), W_RG = 4.6 eV", "n_sub (10¹³ cm⁻²)", "induced in the stack", "rms of the peaks (mV)"],
+       bf_rows, numeric={1, 2, 3, 5})}
+<p>Everything else is fixed and the same for both: neutral stack, interlayer ε 2.6, full SWMcC tight binding, tip
+R 20 nm at d 0.7 nm, T 9 K; σ 12.5 meV (940) and 13.7 meV (514).</p>
 
 <footer>
 <p>Generated by <code>stacking_wall_epsfit/cpot940_report.py</code> on the branch
 <code>claude/eloquent-franklin-q9q4cb</code> of few-layer-graphite; Poisson and tight-binding engine: bandbending
 (<code>lateral-solver</code>). Scripts: <code>cpot940.py</code> (CPot bisection and sweeps),
 <code>cpot940_geom.py</code> (d and R sweeps), <code>cpot940_geom_fine.py</code> (0.25 mV peak re-evaluation),
-<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>, <code>cpot940_nsub.py</code> (substrate-charge sweep), <code>cpot940_fit2.py</code> (two-parameter fit), <code>cpot940_fit2_bands.py</code>; summaries in
+<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>, <code>cpot940_nsub.py</code> (substrate-charge sweep), <code>cpot940_fit2.py</code> (two-parameter fit; <code>CPOT_TAG=514</code> for line 514), <code>cpot940_fit2_bands.py</code>, <code>cpot_bestfits_plot.py</code>; summaries in
 <code>examples/stacking_wall_cpot940*.json</code>. The raw .sm4 line spectra are not in the repository.</p>
 </footer>
 </main>

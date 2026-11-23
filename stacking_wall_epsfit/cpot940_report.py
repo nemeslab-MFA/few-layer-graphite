@@ -16,6 +16,8 @@ sys.path.insert(0, HERE)
 import cpot940 as C  # noqa: E402
 import cpot940_geom as G  # noqa: E402
 import cpot940_tibb_sketch as K  # noqa: E402
+import rescore  # noqa: E402
+import step1  # noqa: E402
 
 STYLE = """
 <style>
@@ -78,7 +80,8 @@ TITLES = {"stacking_wall_cpot940.png": "Contact-potential fit",
           "stacking_wall_cpot940_geom.png": "Tip distance and apex radius",
           "stacking_wall_cpot940_tibb_sketch.png": "Why only the occupied side moves",
           "stacking_wall_cpot940_bands.png": "Band structure under the apex",
-          "stacking_wall_cpot940_nsub.png": "Substrate charge at the fitted tip"}
+          "stacking_wall_cpot940_nsub.png": "Substrate charge at the fitted tip",
+          "stacking_wall_cpot940_fit2.png": "Two-parameter fit of CPot and substrate charge"}
 FIGNO = {}
 
 
@@ -179,6 +182,27 @@ def build():
                               (2, "upper bulk edge 1 (bulk, +0.27 V)"), (3, "upper bulk edge 2 (bulk, +0.37 V)"))]
     rms0 = float(np.sqrt(np.mean(e0 ** 2)))
     rms_opt = float(np.sqrt(np.mean(e_opt ** 2)))
+
+    # two-parameter fit (cpot940_fit2.py): valley points, off-valley points, best point
+    import cpot940_fit2 as F2
+    import cpot940_fit2_plot as F2P
+    f2_val, f2_all = F2P.valley_rows()
+    f2_best = min(f2_all.values(), key=lambda r: r["rms4"])
+    f2_zero = min((r for k, r in f2_all.items() if k[1] == 0.0), key=lambda r: abs(r["cpot"] + 0.366))
+    f2_rows = [[f"{r['nsub'] / 1e13:+.3g}".replace("-", "−"), num(r["cpot"], 3),
+                *(mv(1e3 * v) for v in r["features"]), num(1e3 * r["rms4"], 1)] for r in f2_val]
+    f2_rows.append(["measured", "", *(mv(v) for v in fm), ""])
+    f2_cls = ["hl" if r is f2_best else "" for r in f2_val] + ["meas"]
+
+    def rise(V, y, lo=0.05, hi=0.23):
+        w = (V >= lo) & (V <= hi)
+        d = np.gradient(y[w], V[w])
+        k = int(np.argmax(d))
+        return 1e3 * V[w][k], d[k] / y[w].mean()
+    Vr_, yr_ = rescore.measured(C.TAG)
+    step_best = rise(step1.FINE, np.asarray(f2_best["didv"]))
+    step_meas = rise(Vr_, yr_)
+    f2_off = sorted([r for k, r in f2_all.items() if k[1] == round(f2_best["nsub"] / 1e13, 4)], key=lambda r: r["cpot"])
     pk_fit, pk_free, pk_meas = fp[(0.7, 20.0)], fine["free"]["peak"], fine["measured"]
     lg = sorted(pl["log"], key=lambda x: -x["cpot"])
     k_lo = min(lg, key=lambda x: abs(x["cpot"] + 0.35))
@@ -265,8 +289,9 @@ The same change of lever arm across the flat-band peak stretches its outer flank
 so the measured asymmetry is likely tip gating. Substrate charge acts mainly on the bulk subbands and hardly reaches
 the top-surface flat band: the ratio of substrate to tip lever arm is {abs(sub_s[1] / tip_s[1]):.1f} for the flat band,
 {abs(sub_s[0] / tip_s[0]):.0f} for the lower bulk peak and {abs(sub_s[2] / tip_s[2]):.0f} for the upper ones. This
-difference separates the two parameters; a linear estimate puts the best fit of the four peak positions at
-n<sub>sub</sub> ≈ {mv(pred_n, 2)} × 10¹³ cm⁻² and CPot ≈ {num(pred_c, 2)} eV.</p></div>
+difference separates the two parameters. Fitting CPot and n<sub>sub</sub> to the four peak positions gives CPot =
+{num(f2_best['cpot'], 3)} eV and n<sub>sub</sub> = {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻² (holes), and the rms
+position error drops from {1e3 * f2_zero['rms4']:.0f} to {1e3 * f2_best['rms4']:.1f} mV.</p></div>
 
 <ol class="findings">
 <li><b>One parameter places the flat band.</b> CPot = W<sub>tip</sub> − W<sub>RG</sub> = {num(best, 3)} eV puts the
@@ -286,8 +311,12 @@ mV against {mv(fm[2])} / {mv(fm[3])} mV measured), the {abs(1e3 * t['features'][
 lower bulk edge, and the outer tail of the flat-band peak.</li>
 <li><b>Substrate charge acts through the tip's lever arm.</b> At the fitted tip, positive trap charge (electrons in the
 stack) raises the lever arm to {num(nsd[2.0]['alpha'])} and pulls the flat band to {mv(nsd[2.0]['fb_tip'])} mV;
-negative trap charge pins it near E<sub>F</sub> (α ≈ {num(nsd[-0.5]['alpha'])}). The measured −32 mV needs
-n<sub>sub</sub> ≈ 0.</li>
+negative trap charge pins it near E<sub>F</sub> (α ≈ {num(nsd[-0.5]['alpha'])}). At fixed CPot the measured −32 mV
+needs n<sub>sub</sub> ≈ 0.</li>
+<li><b>CPot and substrate charge fitted together</b> to the four peak positions: CPot {num(f2_best['cpot'], 3)} eV,
+n<sub>sub</sub> {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻², rms {1e3 * f2_best['rms4']:.1f} mV (CPot alone:
+{1e3 * f2_zero['rms4']:.0f} mV). The hole doping moves the upper bulk edges into place; the spacing of the two upper
+edges still misses by 12 mV.</li>
 </ol>
 
 <h2>Hypothesis and model</h2>
@@ -459,24 +488,53 @@ depth: it is bias-independent, and the lower layers screen it from the top-surfa
 <ul>
 <li>The flat band fixes one combination (the valley of constant flat band), the upper edges measure n<sub>sub</sub>,
 and the lower edge is a check.</li>
-<li>Linear prediction along the valley from these slopes: n<sub>sub</sub> ≈ {mv(pred_n, 2)} × 10¹³, CPot ≈
-{num(pred_c, 2)} eV, rms of the four positions {rms0:.0f} → {rms_opt:.0f} mV (lower {mv(e_opt[0])}, upper
-{mv(e_opt[2])} / {mv(e_opt[3])} mV).</li>
-<li>The limit is again a lever-arm mismatch: along the valley the lower edge moves {val_s[0] / val_s[2]:.1f} times
-faster than the upper edges, while the upper edges need to move up and the lower edge down. That residual, and the
-spacing of the two upper edges ({1e3 * (runs[best]['tip']['features'][3] - runs[best]['tip']['features'][2]):.0f} mV
-against {fm[3] - fm[2]:.0f} mV measured), lie beyond the two electrostatic parameters.</li>
+<li>A linear estimate from these slopes put the optimum at n<sub>sub</sub> ≈ {mv(pred_n, 2)} × 10¹³ and CPot ≈
+{num(pred_c, 2)} eV. The full fit (section 7) lands at {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ and
+{num(f2_best['cpot'], 2)} eV: the response is nonlinear. Along the valley the lower edge stays at −268 to −275 mV
+down to n<sub>sub</sub> ≈ −0.44 × 10¹³ and then moves fast, as hole doping pins the top band and the tip's lever arm
+on the lower edge grows.</li>
+<li>What the two parameters cannot change is the spacing of the two upper edges
+({1e3 * (runs[best]['tip']['features'][3] - runs[best]['tip']['features'][2]):.0f} mV against {fm[3] - fm[2]:.0f} mV
+measured): substrate charge shifts them together.</li>
 </ul>
 
-<h2>7 · Open points and next steps</h2>
+<h2>7 · Two-parameter fit: CPot and substrate charge</h2>
+<p>Objective: rms error of the four peak positions (lower bulk edge, flat band, upper edges 1 and 2); peak shapes are
+ignored and every other parameter is fixed. For each n<sub>sub</sub>, CPot is first set so that the flat band under
+the apex sits at the measured −32.5 mV (single solves); full bias sweeps (16 points) at these valley points, then
+points across the valley at the best n<sub>sub</sub>.</p>
+{img("stacking_wall_cpot940_fit2.png", "Two-parameter fit of CPot and substrate charge",
+     "Left: top-layer dI/dV along the flat-band valley, labelled by n<sub>sub</sub> (10¹³ e/cm²) and CPot, with the "
+     "measured spectrum on top. Middle: CPot along the valley; errors across the valley at the best n<sub>sub</sub>. "
+     "Right: peak-position errors along the valley; best fit and CPot-only fit against the measurement.")}
+{table(["n_sub (10¹³)", "CPot (eV)", "lower edge", "flat band", "upper edge 1", "upper edge 2", "rms (mV)"],
+       f2_rows, f2_cls, numeric=set(range(7)))}
+<ul>
+<li><b>Best fit:</b> CPot {num(f2_best['cpot'], 3)} eV, n<sub>sub</sub> {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻²,
+errors {", ".join(mv(1e3 * v) for v in f2_best['err'])} mV, rms {1e3 * f2_best['rms4']:.1f} mV. Across the valley at
+this n<sub>sub</sub> the rms is {", ".join(f"{1e3 * r['rms4']:.1f}" for r in f2_off)} mV at CPot
+{", ".join(num(r['cpot'], 3) for r in f2_off)} eV. With W<sub>RG</sub> ≈ 4.6 eV, W<sub>tip</sub> ≈
+{num(4.6 + f2_best['cpot'], 2)} eV.</li>
+<li>The minimum is sharp: the rms rises to {1e3 * min(r['rms4'] for r in f2_val if abs(r['nsub'] / 1e13 + 0.4375) < 1e-6):.0f}
+and {1e3 * min(r['rms4'] for r in f2_val if abs(r['nsub'] / 1e13 + 0.5625) < 1e-6):.0f} mV at −0.4375 and
+−0.5625 × 10¹³. At −0.75 × 10¹³ the top band is pinned and the dI/dV flat band sits at
+{mv(1e3 * [r for r in f2_val if abs(r['nsub'] / 1e13 + 0.75) < 1e-6][0]['features'][1])} mV although the apex LDOS
+was placed at −32.5 mV.</li>
+<li><b>Extra feature.</b> For n<sub>sub</sub> ≤ −0.375 × 10¹³ a step appears between the flat band and the upper
+edges: at the best fit the steepest rise is at {step_best[0]:.0f} mV, probably the emptied bottom-surface band. The
+measurement rises there too ({step_meas[0]:.0f} mV), but {step_best[1] / step_meas[1]:.0f} times more gently.</li>
+</ul>
+
+<h2>8 · Open points and next steps</h2>
 <ul>
 <li><b>Upper bulk edges.</b> The field vanishes there, so no tip setting moves them. Their 15–27 mV deficit belongs
 to the band structure or the potential profile of the stack.</li>
 <li><b>Lower edge and outer tail.</b> The lower edge prefers a weaker tip than the flat band does, and the measured
 outer tail of the flat band is absent from every tip setting.</li>
-<li><b>Fit CPot and n<sub>sub</sub> together</b> over n<sub>sub</sub> = 0 to −0.5 × 10¹³: at −0.5 the upper edges move
-to {mv(1e3 * nsub_edges[0])} / {mv(1e3 * nsub_edges[1])} mV (measured {mv(fm[2])} / {mv(fm[3])}), but the flat band
-rises to {mv(nsd[-0.5]['fb_tip'])} mV and needs a more negative CPot.</li>
+<li><b>Substrate charge in the whole SiO₂</b> (noted 23 November): repeat the two-parameter fit with the fixed charge
+spread over the 90 nm oxide instead of the 2 nm trap layer, compared at the same charge induced in the stack.</li>
+<li><b>The step at +{step_best[0]:.0f} mV</b> in the hole-doped fit: identify it and compare with the gentle rise of the
+measurement there.</li>
 <li><b>Separate lever arm from position.</b> Refit CPot at d 0.4, 0.5 and 1.0 nm with the flat band held at −32 mV
 and compare the half-width ratio and the lower edge.</li>
 <li><b>Interlayer ε below 2.6</b> (noted 22 November): a smaller ε raises the lever arm per unit field.</li>
@@ -492,7 +550,7 @@ above V₀ ≈ +0.37 V should shift slightly outward.</li>
 <code>claude/eloquent-franklin-q9q4cb</code> of few-layer-graphite; Poisson and tight-binding engine: bandbending
 (<code>lateral-solver</code>). Scripts: <code>cpot940.py</code> (CPot bisection and sweeps),
 <code>cpot940_geom.py</code> (d and R sweeps), <code>cpot940_geom_fine.py</code> (0.25 mV peak re-evaluation),
-<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>; summaries in
+<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>, <code>cpot940_nsub.py</code> (substrate-charge sweep), <code>cpot940_fit2.py</code> (two-parameter fit); summaries in
 <code>examples/stacking_wall_cpot940*.json</code>. The raw .sm4 line spectra are not in the repository.</p>
 </footer>
 </main>

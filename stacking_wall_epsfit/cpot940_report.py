@@ -81,7 +81,9 @@ TITLES = {"stacking_wall_cpot940.png": "Contact-potential fit",
           "stacking_wall_cpot940_tibb_sketch.png": "Why only the occupied side moves",
           "stacking_wall_cpot940_bands.png": "Band structure under the apex",
           "stacking_wall_cpot940_nsub.png": "Substrate charge at the fitted tip",
-          "stacking_wall_cpot940_fit2.png": "Two-parameter fit of CPot and substrate charge"}
+          "stacking_wall_cpot940_fit2.png": "Two-parameter fit of CPot and substrate charge",
+          "stacking_wall_cpot940_fit2_bands.png": "Band structure at the best fit",
+          "stacking_wall_cpot940_fit2_kp.png": "The paper's SWMcC k·p model with the best-fit on-site energies"}
 FIGNO = {}
 
 
@@ -291,7 +293,8 @@ the top-surface flat band: the ratio of substrate to tip lever arm is {abs(sub_s
 {abs(sub_s[0] / tip_s[0]):.0f} for the lower bulk peak and {abs(sub_s[2] / tip_s[2]):.0f} for the upper ones. This
 difference separates the two parameters. Fitting CPot and n<sub>sub</sub> to the four peak positions gives CPot =
 {num(f2_best['cpot'], 3)} eV and n<sub>sub</sub> = {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻² (holes), and the rms
-position error drops from {1e3 * f2_zero['rms4']:.0f} to {1e3 * f2_best['rms4']:.1f} mV.</p></div>
+position error drops from {1e3 * f2_zero['rms4']:.0f} to {1e3 * f2_best['rms4']:.1f} mV. The fit also reproduces a weak
+peak at small positive bias: the bottom-surface flat band, emptied by the hole doping.</p></div>
 
 <ol class="findings">
 <li><b>One parameter places the flat band.</b> CPot = W<sub>tip</sub> − W<sub>RG</sub> = {num(best, 3)} eV puts the
@@ -315,8 +318,8 @@ negative trap charge pins it near E<sub>F</sub> (α ≈ {num(nsd[-0.5]['alpha'])
 needs n<sub>sub</sub> ≈ 0.</li>
 <li><b>CPot and substrate charge fitted together</b> to the four peak positions: CPot {num(f2_best['cpot'], 3)} eV,
 n<sub>sub</sub> {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻², rms {1e3 * f2_best['rms4']:.1f} mV (CPot alone:
-{1e3 * f2_zero['rms4']:.0f} mV). The hole doping moves the upper bulk edges into place; the spacing of the two upper
-edges still misses by 12 mV.</li>
+{1e3 * f2_zero['rms4']:.0f} mV). The hole doping moves the upper bulk edges into place and empties the bottom-surface flat band, which appears as a
+weak peak at small positive bias; the spacing of the two upper edges still misses by 12 mV.</li>
 </ol>
 
 <h2>Hypothesis and model</h2>
@@ -520,10 +523,33 @@ and {1e3 * min(r['rms4'] for r in f2_val if abs(r['nsub'] / 1e13 + 0.5625) < 1e-
 −0.5625 × 10¹³. At −0.75 × 10¹³ the top band is pinned and the dI/dV flat band sits at
 {mv(1e3 * [r for r in f2_val if abs(r['nsub'] / 1e13 + 0.75) < 1e-6][0]['features'][1])} mV although the apex LDOS
 was placed at −32.5 mV.</li>
-<li><b>Extra structure above E<sub>F</sub>.</b> For n<sub>sub</sub> ≤ −0.375 × 10¹³ the spectrum has a deep minimum
-just above the flat band followed by a sharp rise, steepest at {step_best[0]:.0f} mV in the best fit. The measurement
-has a shallower minimum and rises at {step_meas[0]:.0f} mV, {step_best[1] / step_meas[1]:.0f} times more gently.
-Origin not identified; the emptied bottom-surface band is a candidate.</li>
+<li><b>Structure above E<sub>F</sub>.</b> For n<sub>sub</sub> ≤ −0.375 × 10¹³ the spectrum has a minimum just above
+the flat band, a rise steepest at {step_best[0]:.0f} mV and a weak peak at +112 mV in the best fit: the gap between
+the two surface bands and the emptied bottom-surface band (Figures 9 and 10). The measurement shows the same sequence,
+with a shallower minimum and a rise at {step_meas[0]:.0f} mV that is {step_best[1] / step_meas[1]:.0f} times more
+gentle.</li>
+</ul>
+
+<h3>Band structure at the best fit</h3>
+{img("stacking_wall_cpot940_fit2_bands.png", "Band structure at the best fit, without and with the tip",
+     "Engine tight binding (full SWMcC) along Γ ← K → M at the best fit, coloured by weight on the top layer: no tip, "
+     "and with the layer potentials under the apex at −32 mV. Right: layer potentials (also at +112 mV). Bottom: the "
+     "two surface flat bands overlaid, and the top-layer LDOS.")}
+{img("stacking_wall_cpot940_fit2_kp.png", "SWMcC k·p bands with the best-fit on-site energies",
+     "The SWMcC k·p model of McEllistrim et al. (2023), as used in the paper (multilayer_graphene.py), with the layer "
+     "on-site energies of the best fit, coloured by the layer the state sits on (1 = top, 6 = bottom); dotted: engine "
+     "tight binding. Top: full range; bottom: near E<sub>F</sub>.")}
+<ul>
+<li>Without the tip the hole doping polarises the stack (U − E<sub>F</sub> from +3 meV on L1 to +83 meV on L6) and
+splits the two surface bands: the top-surface band holds E<sub>F</sub> (−6 meV at K), the bottom-surface band is
+emptied and sits at +74 meV, 100 % on L6 at K.</li>
+<li>With the tip at −32 mV the top-surface band drops to −49 meV at K, fully below E<sub>F</sub> (maximum −15 meV at
+|k − K| ≈ 0.45 nm⁻¹); the bottom-surface band does not move.</li>
+<li>The bottom-surface band is flat at +72 to +76 meV out to |k − K| ≈ 0.4 nm⁻¹, where it turns into a bulk band and
+gains top-layer weight. The top-layer LDOS has a weak maximum there (+101 to +109 meV), which is the +112 mV peak of
+the dI/dV.</li>
+<li>The paper's k·p model with the same on-site energies agrees with the engine's tight binding within 2 meV for
+|k − K| ≤ 0.3 nm⁻¹ (16 meV at 0.8 nm⁻¹, where the linearised structure factor departs from the full one).</li>
 </ul>
 
 <h2>8 · Open points and next steps</h2>
@@ -534,8 +560,9 @@ to the band structure or the potential profile of the stack.</li>
 outer tail of the flat band is absent from every tip setting.</li>
 <li><b>Substrate charge in the whole SiO₂</b> (noted 23 November): repeat the two-parameter fit with the fixed charge
 spread over the 90 nm oxide instead of the 2 nm trap layer, compared at the same charge induced in the stack.</li>
-<li><b>The sharp rise at +{step_best[0]:.0f} mV</b> in the hole-doped fit: identify its origin and compare with the
-gentle rise of the measurement there.</li>
+<li><b>Gap between the surface bands.</b> The model's minimum between the flat band and the bottom-surface band is
+deeper and its edge sharper than measured; disorder in n<sub>sub</sub> or the broadening of the bottom band would soften
+it.</li>
 <li><b>Separate lever arm from position.</b> Refit CPot at d 0.4, 0.5 and 1.0 nm with the flat band held at −32 mV
 and compare the half-width ratio and the lower edge.</li>
 <li><b>Interlayer ε below 2.6</b> (noted 22 November): a smaller ε raises the lever arm per unit field.</li>
@@ -551,7 +578,7 @@ above V₀ ≈ +0.37 V should shift slightly outward.</li>
 <code>claude/eloquent-franklin-q9q4cb</code> of few-layer-graphite; Poisson and tight-binding engine: bandbending
 (<code>lateral-solver</code>). Scripts: <code>cpot940.py</code> (CPot bisection and sweeps),
 <code>cpot940_geom.py</code> (d and R sweeps), <code>cpot940_geom_fine.py</code> (0.25 mV peak re-evaluation),
-<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>, <code>cpot940_nsub.py</code> (substrate-charge sweep), <code>cpot940_fit2.py</code> (two-parameter fit); summaries in
+<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>, <code>cpot940_nsub.py</code> (substrate-charge sweep), <code>cpot940_fit2.py</code> (two-parameter fit), <code>cpot940_fit2_bands.py</code>; summaries in
 <code>examples/stacking_wall_cpot940*.json</code>. The raw .sm4 line spectra are not in the repository.</p>
 </footer>
 </main>

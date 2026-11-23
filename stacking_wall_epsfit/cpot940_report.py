@@ -281,7 +281,7 @@ def build():
 <div class="eyebrow">Six-layer rhombohedral graphite · line 940, (+⁵) side · 23 November 2026</div>
 <h1>The tip sets the flat band in line 940</h1>
 <div class="abstract"><span class="label">Abstract</span>
-<p>The top-layer flat band of the (+⁵) spectrum in line 940 sits at −32 mV. A neutral six-layer stack with the tip
+<p>Throughout, “top” means the graphene layer next to the tip (L1) and “bottom” the layer on the SiO₂ (L6). The top-layer flat band of the (+⁵) spectrum in line 940 sits at −32 mV. A neutral six-layer stack with the tip
 contact potential as the only free parameter puts it there at CPot = W<sub>tip</sub> − W<sub>RG</sub> = {num(best, 3)}
 eV. Of all spectral features, the flat band is the one CPot moves most easily ({abs(tip_s[1]):.0f} mV per 0.1 eV).
 With CPot &lt; 0 the tip field vanishes at a positive sample bias, V₀ = −CPot/e ≈ {mv(v0f, 2)} V, so the tip shifts
@@ -332,6 +332,8 @@ potential.</p>
 <div class="eq">CPot = W<sub>tip</sub> − W<sub>RG</sub>; the tip field vanishes at the sample bias V₀ = −CPot/e
 <span class="r">(neutral stack, no other charge)</span></div>
 {table(["ingredient", "setting"], [
+    ["layers", "L1 = top layer, next to the tip (the layer the STM spectrum measures); L6 = bottom layer, on the SiO₂. "
+               "“Top-surface band”: the flat band on L1; “bottom-surface band”: the flat band on L6"],
     ["stack", "six-layer rhombohedral graphite, (+⁵) stacking; neutral: no Fermi-level offset, no trap or substrate charge"],
     ["tight binding", "full SWMcC set (γ0–γ5, Δ′), Hartree self-consistent with the Poisson solve"],
     ["interlayer ε<sub>z</sub>", "2.6 (σ bands only; π screening from the tight-binding charge)"],
@@ -444,7 +446,8 @@ occupied side with a fixed empty side is the signature of a negative contact pot
 
 <h2>5 · Band structure under the apex</h2>
 {img("stacking_wall_cpot940_bands.png", "Band structure without and with the tip potentials",
-     "Full-SWMcC bands along Γ ← K → M, coloured by weight on the top layer: no tip, and with the layer potentials "
+     "Full-SWMcC bands along Γ ← K → M, coloured by weight on the top layer (L1, next to the tip): no tip, and with the "
+     "layer potentials "
      "under the apex at V = −32 mV (CPot −0.367 eV). Right: layer potentials (also at −270 and +355 mV). Bottom: the "
      "two surface flat bands overlaid, and the top-layer LDOS.")}
 <ul>
@@ -533,17 +536,19 @@ gentle.</li>
 
 <h3>Band structure at the best fit</h3>
 {img("stacking_wall_cpot940_fit2_bands.png", "Band structure at the best fit, without and with the tip",
-     "Engine tight binding (full SWMcC) along Γ ← K → M at the best fit, coloured by weight on the top layer: no tip, "
+     "Engine tight binding (full SWMcC) along Γ ← K → M at the best fit, coloured by weight on the top layer (L1, next "
+     "to the tip): no tip, "
      "and with the layer potentials under the apex at −32 mV. Right: layer potentials (also at +112 mV). Bottom: the "
      "two surface flat bands overlaid, and the top-layer LDOS.")}
 {img("stacking_wall_cpot940_fit2_kp.png", "SWMcC k·p bands with the best-fit on-site energies",
      "The SWMcC k·p model of McEllistrim et al. (2023), as used in the paper (multilayer_graphene.py), with the layer "
-     "on-site energies of the best fit, coloured by the layer the state sits on (1 = top, 6 = bottom); dotted: engine "
+     "on-site energies of the best fit, coloured by the layer the state sits on (1 = top, next to the tip; 6 = bottom, "
+     "on the SiO₂); dotted: engine "
      "tight binding. Top: full range; bottom: near E<sub>F</sub>.")}
 <ul>
 <li>Without the tip the hole doping polarises the stack (U − E<sub>F</sub> from +3 meV on L1 to +83 meV on L6) and
-splits the two surface bands: the top-surface band holds E<sub>F</sub> (−6 meV at K), the bottom-surface band is
-emptied and sits at +74 meV, 100 % on L6 at K.</li>
+splits the two surface bands: the top-surface band (on L1, next to the tip) holds E<sub>F</sub> (−6 meV at K), the
+bottom-surface band (on L6, on the SiO₂) is emptied and sits at +74 meV, 100 % on L6 at K.</li>
 <li>With the tip at −32 mV the top-surface band drops to −49 meV at K, fully below E<sub>F</sub> (maximum −15 meV at
 |k − K| ≈ 0.45 nm⁻¹); the bottom-surface band does not move.</li>
 <li>The bottom-surface band is flat at +72 to +76 meV out to |k − K| ≈ 0.4 nm⁻¹, where it turns into a bulk band and

@@ -178,7 +178,7 @@ if __name__ == "__main__":
                          + ("" if i == 0 else ", near E_F"), fontsize=9, loc="left")
             B.style(ax)
     cb = fig.colorbar(lc, ax=axs, fraction=0.025, pad=0.02)
-    cb.set_label("layer the state sits on, ⟨l⟩ (1 = top, 6 = bottom)")
+    cb.set_label("layer the state sits on, ⟨l⟩ (1 = top, next to the tip; 6 = bottom, on SiO₂)")
     cb.outline.set_visible(False)
     fig.suptitle("SWMcC k·p model of McEllistrim et al. (2023) (multilayer_graphene.py, as in the paper) with the layer "
                  f"on-site energies of the best fit (CPot {BEST_C:+.3f} eV, n_sub {BEST_N / 1e13:+.2f} × 10¹³ cm⁻²)",

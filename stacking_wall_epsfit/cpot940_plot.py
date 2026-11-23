@@ -56,7 +56,7 @@ if __name__ == "__main__":
     t = runs[best]["tip"]
     a.set_ylabel("dI/dV (measured units; model scaled)")
     fig.suptitle(f"Line 940 (+⁵): neutral stack (no offset, no substrate charge), ε 2.6, full SWMcC, tip R 20 nm, d 0.7 nm; "
-                 f"CPot fitted to the flat band only.  CPot {best:+.3f} eV: features {C.S._mv(t['features'])} mV "
+                 f"CPot fitted to the flat band only.\nCPot {best:+.3f} eV: features {C.S._mv(t['features'])} mV "
                  f"(measured {C.S._mv(fm)}), asymmetry {t['asym']:+.2f} (measured {runs[best]['measured_asym']:+.2f})",
                  fontsize=9, x=0.01, ha="left", color=INK)
     a.set_title("full spectrum", fontsize=8.5, loc="left")
@@ -95,7 +95,7 @@ if __name__ == "__main__":
     e.legend(fontsize=7, frameon=False)
     for ax in (a, b, c, d, e):
         style(ax)
-    fig.tight_layout(rect=(0, 0, 1, 0.97))
+    fig.tight_layout(rect=(0, 0, 1, 0.955))
     out = os.path.join(REPO, "examples", "stacking_wall_cpot940.png")
     fig.savefig(out, dpi=130)
     print("wrote", out)

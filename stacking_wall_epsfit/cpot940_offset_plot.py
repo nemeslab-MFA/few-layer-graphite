@@ -1,4 +1,5 @@
-"""940 (+5): measured, fitted CPot, CPot 0 and no tip, vertically offset. ../examples/stacking_wall_cpot940_offset.png"""
+"""(+5) of line 940 (or 514 with CPOT_TAG=514): measured, fitted CPot, CPot 0 and no tip, vertically offset.
+../examples/stacking_wall_cpot<TAG>_offset.png"""
 import json
 import os
 import sys
@@ -39,11 +40,14 @@ if __name__ == "__main__":
         ax.plot(x, y + k * OFFSET, color=col, ls=ls, lw=1.9 if lab == "measured" else 1.5)
         ax.text(0.455, y[-1] + k * OFFSET, lab, color=INK, fontsize=9, va="center", ha="left")
     ax.set(xlim=(-0.45, 0.45), xlabel="sample bias (V)", ylabel=f"dI/dV (measured units; model scaled), offset {OFFSET}")
-    ax.set_title("Line 940 (+⁵): neutral stack, ε 2.6, full SWMcC, tip R 20 nm, d 0.7 nm; grey lines: measured features",
+    ft = runs[best]["tip"]["features"]
+    fm_ = runs[best]["measured_features"]
+    ax.set_title(f"Line {C.TAG} (+⁵): neutral stack, ε 2.6, full SWMcC, tip R 20 nm, d 0.7 nm; grey lines: measured features\n"
+                 f"fit features {C.S._mv(ft)} mV, measured {C.S._mv(fm_)} mV",
                  fontsize=9, loc="left", color=INK)
     for sp in ("top", "right"):
         ax.spines[sp].set_visible(False)
     fig.subplots_adjust(right=0.82)
-    out = os.path.join(REPO, "examples", "stacking_wall_cpot940_offset.png")
+    out = os.path.join(REPO, "examples", f"stacking_wall_cpot{C.TAG}_offset.png")
     fig.savefig(out, dpi=150)
     print("wrote", out)

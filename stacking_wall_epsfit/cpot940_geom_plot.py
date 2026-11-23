@@ -8,6 +8,7 @@ import sys
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+import matplotlib.ticker  # noqa: F401
 import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -92,8 +93,11 @@ if __name__ == "__main__":
                      color=INK2)
         rat.set(xlabel=f"{par} ({unit})", ylabel="HWHM outer / inner", title="flat-band asymmetry")
         if par == "R":
-            pos.set_xscale("log")
-            rat.set_xscale("log")
+            for ax in (pos, rat):
+                ax.set_xscale("log")
+                ax.xaxis.set_major_locator(matplotlib.ticker.FixedLocator(x))
+                ax.xaxis.set_major_formatter(matplotlib.ticker.FormatStrFormatter("%g"))
+                ax.xaxis.set_minor_locator(matplotlib.ticker.NullLocator())
         for ax in (pos, rat):
             ax.title.set_fontsize(8.5)
         for ax in (full, zoom, pos, rat):

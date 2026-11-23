@@ -1,4 +1,5 @@
-"""The 940 (+5) flat band placed by the tip alone: neutral stack, contact potential swept.
+"""The (+5) flat band of line 940 (or 514, with CPOT_TAG=514; results in cpot514/) placed by the tip alone: neutral
+stack, contact potential swept.
 
 Hypothesis (user, 2026-11-23): the shift of the top-layer flat band to -32 mV is set mostly by the tip (it changes
 slightly when the tip is pulsed), and since the bias is small there, by the tip - sample work-function difference.
@@ -20,14 +21,15 @@ import numpy as np
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.dirname(HERE)
-OUT = os.path.join(HERE, "cpot940")
+TAG = os.environ.get("CPOT_TAG", "940")                         # line: 940 (default) or 514
+OUT = os.path.join(HERE, "cpot940" if TAG == "940" else f"cpot{TAG}")
 sys.path.insert(0, HERE)
 sys.path.insert(1, REPO)
 import rescore  # noqa: E402
 import step1  # noqa: E402
 import swmcc_cells as S  # noqa: E402
 
-TAG, EPS, MODEL = "940", 2.6, "full"
+EPS, MODEL = 2.6, "full"
 SIG = step1.SIGMA[TAG]
 SPEC = dict(modulation=0.00375, barrier=4.6, separation=step1.TIP["separation"], broadening=SIG, temperature=9.0)
 E = np.arange(-0.30, 0.10 + 1e-9, 0.0005)
@@ -67,8 +69,9 @@ def place():
               f"{np.round(1e3 * U).astype(int).tolist()}", flush=True)
         return fb - vfb
 
-    lo, hi = -0.8, 0.0                                              # f(lo) < 0 < f(hi) expected
-    flo, fhi = f(lo), f(hi)
+    f0 = f(0.0)                                                     # flat band above the target: CPot < 0
+    lo, hi = (-0.8, 0.0) if f0 > 0 else (0.0, 0.8)                  # f(lo) < 0 < f(hi) expected
+    flo, fhi = (f(lo), f0) if f0 > 0 else (f0, f(hi))
     if not flo < 0 < fhi:
         raise SystemExit(f"bracket failed: f({lo}) = {flo}, f({hi}) = {fhi}")
     for _ in range(14):
@@ -137,7 +140,7 @@ def summary():
         keep.append({k: v for k, v in r.items() if k != "sweep"} | dict(V=r["sweep"]["bias"], U0=r["sweep"]["U0"]))
     pl = os.path.join(OUT, "place.json")
     json.dump(dict(place=json.load(open(pl)) if os.path.exists(pl) else None, runs=keep),
-              open(os.path.join(REPO, "examples", "stacking_wall_cpot940.json"), "w"))
+              open(os.path.join(REPO, "examples", f"stacking_wall_cpot{TAG}.json"), "w"))
 
 
 if __name__ == "__main__":

@@ -29,7 +29,7 @@ import step1  # noqa: E402
 OUT = os.path.join(C.OUT, "fit2")
 NSUB = (0.25e13, 0.0, -0.125e13, -0.25e13, -0.375e13, -0.5e13, -0.75e13)
 BIAS16 = (-0.45, -0.35, -0.30, -0.25, -0.20, -0.10, -0.06, -0.03, 0.0, 0.10, 0.20, 0.25, 0.30, 0.35, 0.40, 0.45)
-LO, HI = -1.2, 0.0                                                # CPot bracket (eV)
+LO, HI = (-1.2, 0.0) if C.TAG == "940" else (-0.6, 1.2)          # CPot bracket (eV)
 
 
 def sample(n):
@@ -145,7 +145,7 @@ def summary():
     pl = [json.load(open(os.path.join(OUT, f))) for f in sorted(os.listdir(OUT)) if f.startswith("place_")]
     json.dump(dict(valley=[{k: v for k, v in p.items() if k != "log"} for p in pl],
                    sweeps=[{k: v for k, v in r.items() if k not in ("sweep", "didv")} for r in rs]),
-              open(os.path.join(REPO, "examples", "stacking_wall_cpot940_fit2.json"), "w"))
+              open(os.path.join(REPO, "examples", f"stacking_wall_cpot{C.TAG}_fit2.json"), "w"))
 
 
 def valley(nsub=NSUB):

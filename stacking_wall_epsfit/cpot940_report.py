@@ -292,8 +292,9 @@ so the measured asymmetry is likely tip gating. Substrate charge acts mainly on 
 the top-surface flat band: the ratio of substrate to tip lever arm is {abs(sub_s[1] / tip_s[1]):.1f} for the flat band,
 {abs(sub_s[0] / tip_s[0]):.0f} for the lower bulk peak and {abs(sub_s[2] / tip_s[2]):.0f} for the upper ones. This
 difference separates the two parameters. Fitting CPot and n<sub>sub</sub> to the four peak positions gives CPot =
-{num(f2_best['cpot'], 3)} eV and n<sub>sub</sub> = {mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻² (holes), and the rms
-position error drops from {1e3 * f2_zero['rms4']:.0f} to {1e3 * f2_best['rms4']:.1f} mV. The fit also reproduces a weak
+{num(f2_best['cpot'], 3)} eV, i.e. a tip work function W<sub>tip</sub> ≈ {num(4.6 + f2_best['cpot'], 2)} eV for
+W<sub>RG</sub> ≈ 4.6 eV (an effective value, tied to d = 0.7 nm), and n<sub>sub</sub> =
+{mv(f2_best['nsub'] / 1e13, 2)} × 10¹³ cm⁻² (holes); the rms position error drops from {1e3 * f2_zero['rms4']:.0f} to {1e3 * f2_best['rms4']:.1f} mV. The fit also reproduces a weak
 peak at small positive bias: the bottom-surface flat band, emptied by the hole doping.</p></div>
 
 <ol class="findings">

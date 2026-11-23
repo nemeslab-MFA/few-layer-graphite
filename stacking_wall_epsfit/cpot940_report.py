@@ -221,6 +221,10 @@ def build():
                 f"{100 * ox['equivalent']['carriers'] / ox['equivalent']['n']:.1f} %",
                 f"{abs(ox['equivalent']['carriers']) / 1e12:.2f} × 10¹²"]]
     ox_eq_vol = abs(ox["equivalent"]["n"]) / (90e-7)
+    # line 514, fitted the same way (cpot940.py and cpot940_fit2.py with CPOT_TAG=514)
+    s514 = json.load(open(os.path.join(REPO, "examples", "stacking_wall_cpot514_fit2.json")))
+    b514 = min(s514["sweeps"], key=lambda r: r["rms4"])
+    c514_only = json.load(open(os.path.join(HERE, "cpot514", "place.json")))["cpot"]
     ox_dU = 1e3 * float(np.max(np.abs(np.asarray(ox["equivalent"]["U"]) - np.asarray(ox["trap"]["U"]))))
     f2_off = sorted([r for k, r in f2_all.items() if k[1] == round(f2_best["nsub"] / 1e13, 4)], key=lambda r: r["cpot"])
     pk_fit, pk_free, pk_meas = fp[(0.7, 20.0)], fine["free"]["peak"], fine["measured"]
@@ -614,7 +618,40 @@ gate voltage of a few tenths of a volt, again ~10¹¹ cm⁻². Neither matters a
 volts on the gate do.</li>
 </ul>
 
-<h2>9 · Open points and next steps</h2>
+<h2>9 · Why the tip work function is low: alkanes at the apex</h2>
+<p>The fits give W<sub>tip</sub> ≈ {num(4.6 + best, 2)} eV (CPot only) and {num(4.6 + f2_best['cpot'], 2)} eV (with
+substrate charge) for W<sub>RG</sub> ≈ 4.6 eV, well below clean Pt or PtIr (5.3–5.65 eV, CPot +0.7 to +1.05 eV).
+Line 514, fitted the same way, needs CPot {mv(c514_only, 3)} eV alone and {mv(b514['cpot'], 3)} eV with
+{mv(b514['nsub'] / 1e13, 3)} × 10¹³ cm⁻² of substrate charge (W<sub>tip</sub> ≈ {num(4.6 + b514['cpot'], 2)} eV). A
+plausible cause of both the low values and the jump between the lines is adsorbed n-alkanes on the tip.</p>
+<ul>
+<li><b>The alkanes are there.</b> The ubiquitous contamination on graphite and other van der Waals materials is a
+self-assembled layer of C20–C26 n-alkanes that forms within days in air
+(<a href="https://www.nature.com/articles/s41467-022-34641-7">Pálinkás et al., Nat. Commun. 13, 6770 (2022)</a>).
+PtIr tips on such graphite penetrate the alkane layer and pick up alkane chains
+(<a href="https://www.arxiv.org/abs/2511.04257">Kálvin et al., arXiv:2511.04257</a>).</li>
+<li><b>Alkanes lower the work function of a metal.</b> A tetratetracontane (n-C₄₄H₉₀) film lowers it by about
+0.7 eV on Au(111) and 0.3 eV on Cu(100), with no charge transfer: Pauli repulsion pushes the metal's spill-out
+electrons back (push-back effect), and the shift grows with the work function of the metal
+(<a href="https://repository.lsu.edu/physics_astronomy_pubs/5153">Ishii, Seki et al.</a>;
+<a href="https://link.aps.org/doi/10.1103/PhysRevB.69.041403">Morikawa, Ishii, Seki, PRB 69, 041403 (2004)</a>;
+<a href="https://ir.library.osaka-u.ac.jp/repo/ouka/all/98268/PhysRevB_110_7_075409.pdf">Hamamoto et al., PRB
+110, 075409 (2024)</a> for Pt(111)). On a high-work-function Pt or PtIr apex it should be at the large end.</li>
+<li><b>Size and sign.</b> One alkane layer on a PtIr apex brings W<sub>tip</sub> to roughly 4.6–5.0 eV, close to
+line 514. The jump between the two lines, about {abs(b514['cpot'] - f2_best['cpot']):.1f} eV in CPot, is of the size of
+one monolayer's push-back, so picking up or losing alkanes at the apex (tip pulses can do both) would explain it and
+the slight tuning of the flat band by pulsing. Line 940 needs a further 0.4–1.0 eV beyond one layer on Au (a drop of 1.1–1.7 eV from clean
+PtIr). Alkanes on
+the sample lower W<sub>RG</sub> and push CPot the other way, but the push-back is expected to be weaker on graphite;
+the net negative CPot needs them on the tip.</li>
+<li><b>Caveats.</b> CPot is an effective value tied to d = 0.7 nm and ε = 2.6. A tip inside the alkane layer
+also changes the gap itself (dielectric ε ≈ 2, uncertain effective distance), which alters the tip's lever arm as
+well as its work function. No measured work function of an alkane-coated STM tip was found; the link rests on the
+metal-surface data. A test: track the flat-band position together with the apparent barrier height or I(z) curves
+before and after tip pulses.</li>
+</ul>
+
+<h2>10 · Open points and next steps</h2>
 <ul>
 <li><b>Upper bulk edges.</b> The field vanishes there, so no tip setting moves them. Their 15–27 mV deficit belongs
 to the band structure or the potential profile of the stack.</li>

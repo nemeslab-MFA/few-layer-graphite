@@ -158,6 +158,24 @@ def build():
     best = min(runs, key=lambda c: abs(c - pl["cpot"]))
     fm = np.asarray(runs[best]["measured_features"]) * 1e3
     fp = {(t["d"], t["R"]): t["peak"] for t in fine["tip"]}
+
+    # lever arms of each peak: tip (mV per 0.1 eV more negative CPot, runs -0.30 -> -0.45 eV at n_sub 0) and
+    # substrate (mV for n_sub 0 -> -0.5e13 at CPot -0.367 eV); linear prediction along the flat-band valley
+    fa, fb2 = (1e3 * np.asarray(runs[c]["tip"]["features"]) for c in (-0.3, -0.45))
+    tip_s = (fb2 - fa) / 1.5
+    sub_s = 1e3 * (np.asarray(nsd[-0.5]["feats"]) - np.asarray(nsd[0.0]["feats"]))
+    val_s = sub_s - tip_s * sub_s[1] / tip_s[1]                     # along the valley, per 0.5e13 of holes
+    e0 = 1e3 * np.asarray(runs[best]["tip"]["features"]) - fm
+    oth = [0, 2, 3]
+    x_opt = -float(np.dot(e0[oth], val_s[oth]) / np.dot(val_s[oth], val_s[oth]))
+    e_opt = e0 + val_s * x_opt
+    e_opt[1] = 0.0
+    pred_n, pred_c = -0.5 * x_opt, best - 0.1 * (-sub_s[1] / tip_s[1]) * x_opt
+    lev_rows = [[nm, mv(tip_s[i], 0), mv(sub_s[i], 0), num(abs(sub_s[i] / tip_s[i]), 1)]
+                for i, nm in ((1, "flat band (top layer, near 0 V)"), (0, "lower bulk edge (bulk, −0.26 V)"),
+                              (2, "upper bulk edge 1 (bulk, +0.27 V)"), (3, "upper bulk edge 2 (bulk, +0.37 V)"))]
+    rms0 = float(np.sqrt(np.mean(e0 ** 2)))
+    rms_opt = float(np.sqrt(np.mean(e_opt ** 2)))
     pk_fit, pk_free, pk_meas = fp[(0.7, 20.0)], fine["free"]["peak"], fine["measured"]
     lg = sorted(pl["log"], key=lambda x: -x["cpot"])
     k_lo = min(lg, key=lambda x: abs(x["cpot"] + 0.35))
@@ -418,6 +436,24 @@ tip itself (C<sub>q</sub> of L1 8–16): α {num(nsd[-0.5]['alpha'])}–{num(nsd
 have almost no states at E<sub>F</sub> and the field penetrates past L2: α rises to {num(nsd[2.0]['alpha'])}.</li>
 <li>The asymmetry follows from the fixed sign of the tip field at this CPot, which pulls electrons to the top. It would
 reverse for CPot &gt; 0 or above V₀.</li>
+</ul>
+
+<h3>Tip and substrate lever arms of each peak</h3>
+<p>Fitting four peak positions with CPot and n<sub>sub</sub> works only because each peak responds to the two in a
+different ratio. The tip selects by bias: its field scales with V − V₀ and vanishes near V₀. The substrate selects by
+depth: it is bias-independent, and the lower layers screen it from the top-surface flat band.</p>
+{table(["peak", "tip: CPot −0.1 eV (mV)", "substrate: n_sub 0 → −0.5 × 10¹³ (mV)", "substrate / tip"], lev_rows,
+       numeric={1, 2, 3})}
+<ul>
+<li>The flat band fixes one combination (the valley of constant flat band), the upper edges measure n<sub>sub</sub>,
+and the lower edge is a check.</li>
+<li>Linear prediction along the valley from these slopes: n<sub>sub</sub> ≈ {mv(pred_n, 2)} × 10¹³, CPot ≈
+{num(pred_c, 2)} eV, rms of the four positions {rms0:.0f} → {rms_opt:.0f} mV (lower {mv(e_opt[0])}, upper
+{mv(e_opt[2])} / {mv(e_opt[3])} mV).</li>
+<li>The limit is again a lever-arm mismatch: along the valley the lower edge moves {val_s[0] / val_s[2]:.1f} times
+faster than the upper edges, while the upper edges need to move up and the lower edge down. That residual, and the
+spacing of the two upper edges ({1e3 * (runs[best]['tip']['features'][3] - runs[best]['tip']['features'][2]):.0f} mV
+against {fm[3] - fm[2]:.0f} mV measured), lie beyond the two electrostatic parameters.</li>
 </ul>
 
 <h2>7 · Open points and next steps</h2>

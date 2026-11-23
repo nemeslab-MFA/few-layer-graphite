@@ -32,7 +32,8 @@ import swmcc_cells as S  # noqa: E402
 EPS, MODEL = 2.6, "full"
 SIG = step1.SIGMA[TAG]
 SPEC = dict(modulation=0.00375, barrier=4.6, separation=step1.TIP["separation"], broadening=SIG, temperature=9.0)
-E = np.arange(-0.30, 0.10 + 1e-9, 0.0005)
+E = (np.arange(-0.30, 0.10 + 1e-9, 0.0005) if TAG == "940"            # flat-band search window (eV)
+     else np.arange(-0.10, 0.30 + 1e-9, 0.0005))
 
 
 def sample():

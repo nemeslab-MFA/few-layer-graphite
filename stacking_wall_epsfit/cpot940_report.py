@@ -334,7 +334,20 @@ features outward on both sides ({", ".join(mv(1e3 * (f0[i] - free['features'][i]
 occupied side with a fixed empty side is the signature of a negative contact potential of about −0.37 eV.</li>
 </ul>
 
-<h2>5 · Open points and next steps</h2>
+<h2>5 · Band structure under the apex</h2>
+{img("stacking_wall_cpot940_bands.png", "Band structure without and with the tip potentials",
+     "Full-SWMcC bands along Γ ← K → M, coloured by weight on the top layer: no tip, and with the layer potentials "
+     "under the apex at V = −32 mV (CPot −0.367 eV). Right: layer potentials (also at −270 and +355 mV). Bottom: the "
+     "two surface flat bands overlaid, and the top-layer LDOS.")}
+<ul>
+<li>No tip: the top- and bottom-surface flat bands are degenerate at K (−7 meV) and hybridise, 50 % on L1 each.</li>
+<li>Tip at −32 mV: the potential falls from −30 meV on L1 to −1 meV on L6 and splits the pair. The top-surface band
+drops to −39 meV at K (100 % on L1, maximum −25 meV), fully below E<sub>F</sub>; the bottom-surface band stays at
+−10 meV and holds E<sub>F</sub>. Bulk subbands shift by about −13 meV, the change of the stack-average potential.</li>
+<li>At +355 mV the potentials under the apex equal the no-tip ones within 1 meV: the bands are those without the tip.</li>
+</ul>
+
+<h2>6 · Open points and next steps</h2>
 <ul>
 <li><b>Upper bulk edges.</b> The field vanishes there, so no tip setting moves them. Their 15–27 mV deficit belongs
 to the band structure or the potential profile of the stack.</li>
@@ -355,7 +368,7 @@ above V₀ ≈ +0.37 V should shift slightly outward.</li>
 <code>claude/eloquent-franklin-q9q4cb</code> of few-layer-graphite; Poisson and tight-binding engine: bandbending
 (<code>lateral-solver</code>). Scripts: <code>cpot940.py</code> (CPot bisection and sweeps),
 <code>cpot940_geom.py</code> (d and R sweeps), <code>cpot940_geom_fine.py</code> (0.25 mV peak re-evaluation),
-<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>; summaries in
+<code>cpot940_geom_dense.py</code> (5 mV sweep-grid check), <code>cpot940_tibb_sketch.py</code>, <code>cpot940_bands.py</code>; summaries in
 <code>examples/stacking_wall_cpot940*.json</code>. The raw .sm4 line spectra are not in the repository.</p>
 </footer>
 </main>

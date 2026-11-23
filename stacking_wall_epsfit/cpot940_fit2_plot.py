@@ -71,7 +71,8 @@ if __name__ == "__main__":
     x = np.array([r["nsub"] / 1e13 for r in val])
     b = fig.add_subplot(gs[0, 1])
     b.plot(x, [r["cpot"] for r in val], "o-", color=INK2, lw=1.6, ms=4.5)
-    b.set(xlabel="n_sub (10¹³ e/cm²)", ylabel="CPot for the flat band at −32.5 mV (eV)", title="flat-band valley")
+    b.set(xlabel="n_sub (10¹³ e/cm²)", ylabel=f"CPot for the flat band at {fm[1]:+.1f} mV (eV)".replace("-", "−"),
+          title="flat-band valley")
     b.title.set_fontsize(8.5)
     style(b)
 
@@ -106,7 +107,7 @@ if __name__ == "__main__":
     e.plot(FINE, np.asarray(zero["didv"]) * zero["scale"], color=ORANGE, lw=1.3,
            label=f"CPot only: {zero['cpot']:+.3f} eV, n_sub 0  (rms {1e3 * zero['rms4']:.0f} mV)")
     e.plot(FINE, np.asarray(best["didv"]) * best["scale"], color=BLUE, lw=1.6,
-           label=f"best: {best['cpot']:+.3f} eV, {best['nsub'] / 1e13:+.2f} × 10¹³  (rms {1e3 * best['rms4']:.1f} mV)")
+           label=f"best: {best['cpot']:+.3f} eV, {best['nsub'] / 1e13:+.3g} × 10¹³  (rms {1e3 * best['rms4']:.1f} mV)")
     for f in fm:
         e.axvline(1e-3 * f, color=GRID, lw=0.9, zorder=0)
     e.set(xlim=(-0.45, 0.45), ylim=(0, 0.0215), xlabel="sample bias (V)", ylabel="dI/dV (measured units; model scaled)",

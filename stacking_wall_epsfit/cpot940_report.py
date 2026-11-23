@@ -103,6 +103,13 @@ def mv(x, nd=0):
     return f"{x:+.{nd}f}".replace("-", "−")
 
 
+def sci(x, nd=1):
+    """x as 'm × 10ⁿ' with a superscript exponent."""
+    e = int(np.floor(np.log10(abs(x))))
+    sup = str.maketrans("-0123456789", "⁻⁰¹²³⁴⁵⁶⁷⁸⁹")
+    return f"{x / 10 ** e:.{nd}f} × 10{str(e).translate(sup)}"
+
+
 def num(x, nd=2):
     if abs(x) < 0.5 * 10.0 ** -nd:
         x = 0.0
@@ -204,6 +211,17 @@ def build():
     Vr_, yr_ = rescore.measured(C.TAG)
     step_best = rise(step1.FINE, np.asarray(f2_best["didv"]))
     step_meas = rise(Vr_, yr_)
+    # oxide charge: 2 nm trap layer against uniform over the 90 nm SiO2 (cpot940_bulk.py induced)
+    ox = json.load(open(os.path.join(C.OUT, "bulk", "induced.json")))
+    ox_rows = [["2 nm trap layer (best fit)", mv(ox["trap"]["n"] / 1e13, 3) + " × 10¹³",
+                f"{100 * ox['trap']['carriers'] / ox['trap']['n']:.1f} %", f"{abs(ox['trap']['carriers']) / 1e12:.2f} × 10¹²"],
+               ["uniform over 90 nm, same total", mv(ox["start"]["n"] / 1e13, 3) + " × 10¹³",
+                f"{100 * ox['start']['carriers'] / ox['start']['n']:.1f} %", f"{abs(ox['start']['carriers']) / 1e12:.2f} × 10¹²"],
+               ["uniform over 90 nm, equivalent", mv(ox["equivalent"]["n"] / 1e13, 3) + " × 10¹³",
+                f"{100 * ox['equivalent']['carriers'] / ox['equivalent']['n']:.1f} %",
+                f"{abs(ox['equivalent']['carriers']) / 1e12:.2f} × 10¹²"]]
+    ox_eq_vol = abs(ox["equivalent"]["n"]) / (90e-7)
+    ox_dU = 1e3 * float(np.max(np.abs(np.asarray(ox["equivalent"]["U"]) - np.asarray(ox["trap"]["U"]))))
     f2_off = sorted([r for k, r in f2_all.items() if k[1] == round(f2_best["nsub"] / 1e13, 4)], key=lambda r: r["cpot"])
     pk_fit, pk_free, pk_meas = fp[(0.7, 20.0)], fine["free"]["peak"], fine["measured"]
     lg = sorted(pl["log"], key=lambda x: -x["cpot"])
@@ -558,14 +576,52 @@ the dI/dV.</li>
 |k − K| ≤ 0.3 nm⁻¹ (16 meV at 0.8 nm⁻¹, where the linearised structure factor departs from the full one).</li>
 </ul>
 
-<h2>8 · Open points and next steps</h2>
+<h2>8 · Where the oxide charge sits</h2>
+<p>The fits put the fixed charge in a 2 nm layer of SiO₂ under the stack. The same calculation with the charge spread
+uniformly over the whole 90 nm oxide (tip-free solves, same mesh):</p>
+{table(["oxide charge", "total (cm⁻²)", "induced in the stack", "holes in the stack (cm⁻²)"], ox_rows, ["hl", "", ""],
+       numeric={1, 2, 3})}
+<ul>
+<li><b>Only the induced charge matters.</b> Stack and gate are both grounded, and the oxide charge sets up potential
+drops of tens of volts, next to which the stack's own band shifts (tens of meV) are negligible. The oxide charge
+therefore divides between stack and gate by its distance from the gate: 98.5 % reaches the stack from the 2 nm layer,
+half from a uniform distribution, almost none from charge at the Si/SiO₂ interface. At the equivalent uniform density
+({sci(ox_eq_vol)} cm⁻³) the layer potentials agree with the best fit to better than 0.01 meV, and the tip couples to the
+oxide only through the stack: the spectra and the fitted CPot are unchanged, so no new sweep is needed. The fit fixes
+the charge induced in the stack, {abs(ox['trap']['carriers']) / 1e12:.1f} × 10¹² holes cm⁻², not where its
+counter-charge sits.</li>
+<li><b>Semiconductor practice.</b> The oxide charges of thermally oxidised silicon (Deal, IEEE Trans. Electron Devices
+27, 606 (1980); Nicollian and Brews, <i>MOS Physics and Technology</i>, 1982) are interface-trapped charge at the
+Si/SiO₂ interface (about 10¹⁰ eV⁻¹ cm⁻² after annealing), fixed oxide charge within 2–3 nm of that interface
+(10¹⁰–10¹¹ cm⁻²), mobile ions (Na⁺, K⁺) that drift with bias and temperature, and oxide-trapped charge in the bulk,
+which builds up only under radiation, hot-carrier injection or high-field stress. In good thermal oxide the charge
+sits at interfaces; a uniform {sci(ox_eq_vol)} cm⁻³ is orders of magnitude above what an undamaged oxide holds. Here the
+Si/SiO₂ interface is the gate itself, 90 nm from the graphite, so its charge induces almost nothing in the stack.</li>
+<li><b>Graphene and graphite on SiO₂.</b> The relevant surface is the top face of the oxide, the one the flake sits on:
+exposed to air and processing, it carries silanol groups, adsorbed water and oxygen, residues and charged impurities.
+Graphene on SiO₂ is typically hole-doped by 10¹²–5 × 10¹² cm⁻² from this interface, and its charge puddles (Martin
+et al., Nature Phys. 4, 144 (2008)) and gate hysteresis come from charge within a few nm of it. The 2 nm trap layer
+is the physically motivated model, and {abs(ox['trap']['carriers']) / 1e12:.1f} × 10¹² holes is plausible, at the
+high end of the usual range.</li>
+<li><b>What the location changes.</b> The total charge needed, the lateral length scale of the potential
+fluctuations (charge at distance d makes puddles of size ~d, so surface charge gives short-range disorder that could
+broaden the bottom-surface band), and the response to the back gate.</li>
+<li><b>Potential of the Si.</b> The model holds the Si at the sample potential (V<sub>g</sub> = 0 against the sample,
+no Si–graphite contact potential). If the Si sits at the tip potential instead, the gate–sample voltage follows the
+bias and induces C<sub>ox</sub>V/e = 2.4 × 10¹¹ cm⁻² per volt (90 nm SiO₂): at most ±1 × 10¹¹ cm⁻² over ±0.45 V, 2 %
+of the fitted charge, shifting the peaks by about 0.5 mV. A Si–graphite work-function difference acts as a constant
+gate voltage of a few tenths of a volt, again ~10¹¹ cm⁻². Neither matters at the 4.9 × 10¹² cm⁻² of the fit; tens of
+volts on the gate do.</li>
+</ul>
+
+<h2>9 · Open points and next steps</h2>
 <ul>
 <li><b>Upper bulk edges.</b> The field vanishes there, so no tip setting moves them. Their 15–27 mV deficit belongs
 to the band structure or the potential profile of the stack.</li>
 <li><b>Lower edge and outer tail.</b> The lower edge prefers a weaker tip than the flat band does, and the measured
 outer tail of the flat band is absent from every tip setting.</li>
-<li><b>Substrate charge in the whole SiO₂</b> (noted 23 November): repeat the two-parameter fit with the fixed charge
-spread over the 90 nm oxide instead of the 2 nm trap layer, compared at the same charge induced in the stack.</li>
+<li><b>Back-gate test.</b> A back-gate sweep moves the bottom-surface flat band (+74 meV in the fit) through
+E<sub>F</sub> while the top layer, next to the tip, stays nearly fixed: a direct check of the substrate hole doping.</li>
 <li><b>Gap between the surface bands.</b> The model's minimum between the flat band and the bottom-surface band is
 deeper and its edge sharper than measured; disorder in n<sub>sub</sub> or the broadening of the bottom band would soften
 it.</li>

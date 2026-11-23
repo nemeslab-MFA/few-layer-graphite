@@ -12,8 +12,8 @@
   band (-32 / +23 mV in 940 / 514) cannot be explained by adsorbates: there are too few of them and they are mostly
   normal alkanes. The (+5) spectrum fixes the layer-potential profile, i.e. fixed charge over eps, so a smaller eps
   needs less charge for the same fit.
-- **Substrate charge spread over the whole SiO2 (user, 2026-11-23).** To do: check what happens when the fixed oxide
-  charge n_sub is distributed uniformly over the full 90 nm SiO2 instead of the 2 nm trap layer under the stack
-  (`swmcc_cells.build`: `Layer(step1.TRAP, SIO2, fixed_charge=nsub / (TRAP * 1e-7))`). With the grounded gate 90 nm
-  below, a uniform charge induces only about half of n_sub in the stack (the gate takes the rest), and its field
-  reaches the stack from farther away; compare the CPot-n_sub fit (`cpot940_fit2.py`) at the same induced charge.
+- **Substrate charge spread over the whole SiO2 (user, 2026-11-23; done).** `cpot940_bulk.py induced`: a uniform
+  oxide charge induces 49.9 % of itself in the stack (2 nm trap layer: 98.5 %); at the equivalent uniform density
+  (-0.989e13 cm^-2 total, 1.1e18 cm^-3) the tip-free layer potentials equal the best fit's to < 0.01 meV, so the fit
+  (CPot -0.615 eV, 4.9e12 holes induced) is unchanged. The spectra fix the induced charge, not its location. The 2 nm
+  layer (top face of the SiO2, under the flake) is the physical choice; 1e18 cm^-3 in bulk thermal oxide is not.

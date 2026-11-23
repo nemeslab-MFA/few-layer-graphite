@@ -520,9 +520,10 @@ and {1e3 * min(r['rms4'] for r in f2_val if abs(r['nsub'] / 1e13 + 0.5625) < 1e-
 −0.5625 × 10¹³. At −0.75 × 10¹³ the top band is pinned and the dI/dV flat band sits at
 {mv(1e3 * [r for r in f2_val if abs(r['nsub'] / 1e13 + 0.75) < 1e-6][0]['features'][1])} mV although the apex LDOS
 was placed at −32.5 mV.</li>
-<li><b>Extra feature.</b> For n<sub>sub</sub> ≤ −0.375 × 10¹³ a step appears between the flat band and the upper
-edges: at the best fit the steepest rise is at {step_best[0]:.0f} mV, probably the emptied bottom-surface band. The
-measurement rises there too ({step_meas[0]:.0f} mV), but {step_best[1] / step_meas[1]:.0f} times more gently.</li>
+<li><b>Extra structure above E<sub>F</sub>.</b> For n<sub>sub</sub> ≤ −0.375 × 10¹³ the spectrum has a deep minimum
+just above the flat band followed by a sharp rise, steepest at {step_best[0]:.0f} mV in the best fit. The measurement
+has a shallower minimum and rises at {step_meas[0]:.0f} mV, {step_best[1] / step_meas[1]:.0f} times more gently.
+Origin not identified; the emptied bottom-surface band is a candidate.</li>
 </ul>
 
 <h2>8 · Open points and next steps</h2>
@@ -533,8 +534,8 @@ to the band structure or the potential profile of the stack.</li>
 outer tail of the flat band is absent from every tip setting.</li>
 <li><b>Substrate charge in the whole SiO₂</b> (noted 23 November): repeat the two-parameter fit with the fixed charge
 spread over the 90 nm oxide instead of the 2 nm trap layer, compared at the same charge induced in the stack.</li>
-<li><b>The step at +{step_best[0]:.0f} mV</b> in the hole-doped fit: identify it and compare with the gentle rise of the
-measurement there.</li>
+<li><b>The sharp rise at +{step_best[0]:.0f} mV</b> in the hole-doped fit: identify its origin and compare with the
+gentle rise of the measurement there.</li>
 <li><b>Separate lever arm from position.</b> Refit CPot at d 0.4, 0.5 and 1.0 nm with the flat band held at −32 mV
 and compare the half-width ratio and the lower edge.</li>
 <li><b>Interlayer ε below 2.6</b> (noted 22 November): a smaller ε raises the lever arm per unit field.</li>

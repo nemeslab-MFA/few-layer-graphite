@@ -101,6 +101,7 @@ Requires the `bandbending` package (branch `lateral-solver`, `pip install -e .`)
 dataset 10.5281/zenodo.10931524 unpacked at `$ZENODO_10931524`; the 6L scripts import
 `bandbending/examples/kandrai2026_rg_tip_gating/analysis` (`$KANDRAI_ANALYSIS`, default: the sibling checkout).
 
+- `report.html`: the full report (self-contained; `python make_report.py`)
 - `data/stm_3L4L_avg.json`: map-averaged dI/dV of the four 3L/4L maps (`avg_spectra.py`)
 - `results/`: the two figures
 - `analysis/`: scripts; cached sweeps (`thin/sweep_*.json`, `six/`) let every stage after the solves rerun in seconds
@@ -117,4 +118,5 @@ python six_tiponly.py              # 6L best-fit CPot with n_sub = 0 (2 processe
 python six_gap.py 940; python six_gap.py 514
 python dos_gap.py 3:0.075:3L_647_sub ...   # ERS-analog DOS-peak gaps (N:n_sub/1e13:key)
 python make_figure.py
+python make_report.py              # report.html
 ```
